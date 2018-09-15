@@ -8,6 +8,8 @@ import javax.security.auth.login.LoginException;
 
 import org.abitoff.discord.sushirole.config.SushiRoleConfig;
 import org.abitoff.discord.sushirole.config.SushiRoleConfig.BotConfig;
+import org.abitoff.discord.sushirole.events.GlobalEventListener;
+import org.abitoff.discord.sushirole.exceptions.ExceptionHandler;
 
 import com.beust.jcommander.JCommander;
 import com.google.gson.Gson;
@@ -16,9 +18,6 @@ import com.google.gson.GsonBuilder;
 import net.dv8tion.jda.core.AccountType;
 import net.dv8tion.jda.core.JDA;
 import net.dv8tion.jda.core.JDABuilder;
-import net.dv8tion.jda.core.events.Event;
-import net.dv8tion.jda.core.events.ReadyEvent;
-import net.dv8tion.jda.core.hooks.EventListener;
 
 public class SushiRole
 {
@@ -44,14 +43,17 @@ public class SushiRole
 		GsonBuilder builder = new GsonBuilder();
 		Gson gson = builder.create();
 
-		SushiRoleConfig k;
-		BotConfig botAccount;
+		SushiRoleConfig config;
 		try (FileReader fr = new FileReader(keys))
 		{
-			k = gson.fromJson(fr, SushiRoleConfig.class);
-			botAccount = run.dev ? k.discord_bot_dev : k.discord_bot;
+			config = gson.fromJson(fr, SushiRoleConfig.class);
 		}
 
-		JDA jda = new JDABuilder(AccountType.BOT).setToken(botAccount.token).build().awaitReady();
+		BotConfig botAccount = run.dev ? config.discord_bot_dev : config.discord_bot;
+		ExceptionHandler.initiate(config.pastebin);
+
+		JDA jda = new JDABuilder(AccountType.BOT).setToken(botAccount.token).addEventListener(GlobalEventListener.listener)
+				.useSharding(0, 1).build().awaitReady();
+
 	}
 }

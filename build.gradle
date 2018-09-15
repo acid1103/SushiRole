@@ -25,6 +25,8 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.8.5'
     
     implementation 'com.beust:jcommander:1.71'
+    
+    implementation 'com.github.kennedyoliveira:pastebin4j:1.2.1'
 
     // Use JUnit test framework
     testImplementation 'junit:junit:4.12'
