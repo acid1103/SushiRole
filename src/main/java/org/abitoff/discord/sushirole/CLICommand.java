@@ -2,7 +2,6 @@ package org.abitoff.discord.sushirole;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,11 +19,10 @@ import org.abitoff.discord.sushirole.exceptions.ExceptionHandler;
 import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.utils.JCommanderUtils;
 import org.abitoff.discord.sushirole.utils.JCommanderUtils.JCommanderPackage;
+import org.abitoff.discord.sushirole.utils.LoggingUtils;
 
-import com.beust.jcommander.IParameterValidator;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
-import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -34,8 +32,7 @@ import net.dv8tion.jda.core.JDABuilder;
 
 public abstract class CLICommand
 {
-	private static final JCommanderPackage<CLICommand> parsePackage = JCommanderUtils
-			.generateJCommanderPackage(CLICommand.class);
+	private static final JCommanderPackage<CLICommand> parsePackage = JCommanderUtils.generateJCommanderPackage(CLICommand.class);
 
 	@Parameters(commandDescription = "Runs the bot",commandNames = { "run" })
 	public static class RunCommand extends CLICommand
@@ -51,7 +48,7 @@ public abstract class CLICommand
 
 		@Parameter(names = { "-shard" },description = "Two integers, used to determine the shard ID for this instance "
 				+ "of the bot. Usage: '-shard shardId totalShards' Example: '-shard 5 10' For further information, see "
-				+ "https://discordapp.com/developers/docs/topics/gateway#sharding",arity = 2,validateWith = ShardValidator.class)
+				+ "https://discordapp.com/developers/docs/topics/gateway#sharding",arity = 2)
 		private List<Integer> shard = defaultShard;
 
 		@Parameter(names = { "-v", "-verbose" },description = "An integer describing the verbosity of the messages to "
@@ -63,8 +60,20 @@ public abstract class CLICommand
 
 		public void run()
 		{
-			Level[] verbosityLevels = new Level[] { Level.OFF, Level.SEVERE, Level.WARNING, Level.INFO, Level.CONFIG,
-					Level.FINE, Level.FINER, Level.FINEST, Level.ALL };
+			if (0 > verbosity || verbosity > 8)
+				throw new FatalException(String.format("Verbose value must be in the range [0,8]! (Got %d)", verbosity));
+			if (0 > shard.get(0) || shard.get(0) >= shard.get(1))
+				throw new FatalException(String.format("shardId must be greater than 0, and totalShards must be greater than "
+						+ "shardId! (Got: shardId:%d, totalShards:%d) See https://discordapp.com/developers/docs/topics/gateway#sharding",
+						shard.get(0), shard.get(1)));
+
+			Level[] verbosityLevels = new Level[] { Level.OFF, Level.SEVERE, Level.WARNING, Level.INFO, Level.CONFIG, Level.FINE,
+					Level.FINER, Level.FINEST, Level.ALL };
+			Level verbosityLevel = verbosityLevels[verbosity];
+
+			LoggingUtils.infof("Setting log verbosity to %s.", verbosityLevel.getName());
+			SushiRole.LOG.setLevel(verbosityLevel);
+
 			File keys = new File("./sushiroleconfig/config");
 
 			GsonBuilder builder = new GsonBuilder();
@@ -84,21 +93,11 @@ public abstract class CLICommand
 
 			try
 			{
-				new JDABuilder(AccountType.BOT).setToken(botAccount.token)
-						.addEventListener(GlobalEventListener.listener).useSharding(shard.get(0), shard.get(1)).build()
-						.awaitReady();
+				new JDABuilder(AccountType.BOT).setToken(botAccount.token).addEventListener(GlobalEventListener.listener)
+						.useSharding(shard.get(0), shard.get(1)).build().awaitReady();
 			} catch (LoginException | InterruptedException e)
 			{
 				throw new FatalException("Exception while starting bot!", e);
-			}
-		}
-
-		private static final class ShardValidator implements IParameterValidator
-		{
-			@Override
-			public void validate(String name, String value) throws ParameterException
-			{
-				System.out.println(value);
 			}
 		}
 	}
@@ -117,8 +116,7 @@ public abstract class CLICommand
 			cmdString = jc.getParsedCommand();
 			if (cmdString == null || (cmd = commands.get(cmdString)) == null)
 			{
-				throw new UnknownCommandException(
-						"Unrecognized command. Valid commands: " + commands.keySet().toString());
+				throw new UnknownCommandException("Unrecognized command. Valid commands: " + commands.keySet().toString());
 			}
 		} catch (Exception e)
 		{

@@ -10,7 +10,7 @@ public class SushiRole
 	public static void main(String[] args) throws Exception
 	{
 		LOG.setLevel(Level.ALL);
-		args = "run -dev true".split(" ");
+		args = "run -dev true -v 8".split(" ");
 		CLICommand command = CLICommand.parseCommand(args);
 		command.run();
 	}
