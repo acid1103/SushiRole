@@ -3,6 +3,11 @@ package org.abitoff.discord.sushirole.events;
 import net.dv8tion.jda.core.events.message.guild.GuildMessageReceivedEvent;
 import net.dv8tion.jda.core.hooks.ListenerAdapter;
 
+/**
+ * TODO
+ * 
+ * @author Steven Fontaine
+ */
 public class GlobalEventListener extends ListenerAdapter
 {
 	public final static GlobalEventListener listener = new GlobalEventListener();

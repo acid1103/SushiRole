@@ -12,15 +12,36 @@ import com.github.kennedyoliveira.pastebin4j.PasteExpiration;
 import com.github.kennedyoliveira.pastebin4j.PasteHighLight;
 import com.github.kennedyoliveira.pastebin4j.PasteVisibility;
 
+/**
+ * TODO
+ * 
+ * @author Steven Fontaine
+ */
 public class ExceptionHandler
 {
+	/**
+	 * TODO
+	 */
 	private static PasteBin pastebin;
 
+	/**
+	 * TODO
+	 * 
+	 * @param pbconfig
+	 */
 	public static final void initiate(PastebinConfig pbconfig)
 	{
+		if (pastebin != null)
+			throw new FatalException("ExceptionHandler has already been initiated!");
 		pastebin = new PasteBin(new AccountCredentials(pbconfig.dev_key, pbconfig.username, pbconfig.password));
 	}
 
+	/**
+	 * TODO
+	 * 
+	 * @param t
+	 * @return
+	 */
 	private static final String throwableToString(Throwable t)
 	{
 		StringWriter writer = new StringWriter();
@@ -29,11 +50,23 @@ public class ExceptionHandler
 		return stackTrace;
 	}
 
+	/**
+	 * TODO
+	 * 
+	 * @param pasteContent
+	 * @return
+	 */
 	private static final String generatePasteTitle(String pasteContent)
 	{
 		return "SushiRoleErr:" + System.currentTimeMillis() + "-" + pasteContent.hashCode();
 	}
 
+	/**
+	 * TODO
+	 * 
+	 * @param t
+	 * @return
+	 */
 	public static final String uploadThrowableToPastebin(Throwable t)
 	{
 		if (pastebin == null)
@@ -55,6 +88,12 @@ public class ExceptionHandler
 		return url;
 	}
 
+	/**
+	 * TODO
+	 * 
+	 * @param str
+	 * @return
+	 */
 	private static final String escape(String str)
 	{
 		String s = str;

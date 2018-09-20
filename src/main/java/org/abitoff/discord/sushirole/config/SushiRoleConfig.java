@@ -1,5 +1,10 @@
 package org.abitoff.discord.sushirole.config;
 
+/**
+ * TODO
+ * 
+ * @author Steven Fontaine
+ */
 public class SushiRoleConfig
 {
 	public PastebinConfig pastebin;

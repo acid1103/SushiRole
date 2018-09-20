@@ -1,27 +1,20 @@
 package org.abitoff.discord.sushirole;
 
-import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.abitoff.discord.sushirole.cli.CLICommand;
-import org.abitoff.discord.sushirole.cli.CLICommand2;
-
-import picocli.CommandLine;
+import org.abitoff.discord.sushirole.commands.cli.CLICommand;
+import org.abitoff.discord.sushirole.exceptions.FatalException;
 
 public class SushiRole
 {
 	public static final Logger LOG = Logger.getLogger("SushiRole");
+	public static final String VERSION = "SushiRole v0.1a";
 
-	public static void main(String[] args) throws Exception
+	public static void main(String[] args) throws FatalException
 	{
-		CLICommand2.RunCommand cmd = new CLICommand2.RunCommand();
-		new CommandLine(cmd).parse("--dev --shard 5 10".split(" "));
-		System.out.println(Arrays.toString(cmd.shard));
-		System.exit(0);
 		LOG.setLevel(Level.ALL);
-		args = "run -dev true -v 8".split(" ");
-		CLICommand command = CLICommand.parseCommand(args);
-		command.runCommand();
+		args = "run -dvvvvvvs0 -S1".split(" ");
+		CLICommand.executeCommand(args);
 	}
 }
