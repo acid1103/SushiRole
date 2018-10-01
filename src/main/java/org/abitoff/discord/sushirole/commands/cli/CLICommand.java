@@ -80,14 +80,6 @@ public abstract class CLICommand extends Command
 			verbosityValue = Integer.min(Integer.max(verbosityValue, 0), 6);
 		}
 
-		// OFF
-		// ERROR
-		// WARN
-		// INFO
-		// DEBUG
-		// TRACE
-		// ALL
-
 		@Override
 		protected void executeCommand() throws FatalException
 		{

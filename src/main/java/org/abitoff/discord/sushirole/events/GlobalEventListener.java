@@ -1,8 +1,5 @@
 package org.abitoff.discord.sushirole.events;
 
-import net.dv8tion.jda.core.EmbedBuilder;
-import net.dv8tion.jda.core.MessageBuilder;
-import net.dv8tion.jda.core.entities.Message;
 import net.dv8tion.jda.core.events.ReadyEvent;
 import net.dv8tion.jda.core.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.core.events.message.guild.GuildMessageReceivedEvent;
@@ -35,16 +32,9 @@ public class GlobalEventListener extends ListenerAdapter
 
 	public void onReady(ReadyEvent event)
 	{
-		event.getJDA().getTextChannelById(490425104787046400L).sendMessage(new MessageBuilder()
-				.setEmbed(new EmbedBuilder().setTitle("__Guild__\\ __Channel__\\ __\\*Special User\\*__").build()).build())
-				.queue((Message m) ->
-				{
-					System.out.println("Success");
-					event.getJDA().shutdown();
-				}, (Throwable e) ->
-				{
-					e.printStackTrace();
-					event.getJDA().shutdown();
-				});
+		// event.getJDA().getTextChannelById(490425104787046400L).sendMessage(new MessageBuilder().setEmbed(new
+		// EmbedBuilder().setTitle("__Guild__\\ __Channel__\\ __\\*Special User\\*__").build()).build()).queue((Message
+		// m)->{System.out.println("Success");event.getJDA().shutdown();},(Throwable
+		// e)->{e.printStackTrace();event.getJDA().shutdown();});
 	}
 }
