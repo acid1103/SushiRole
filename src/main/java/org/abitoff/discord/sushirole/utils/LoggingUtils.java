@@ -1,7 +1,7 @@
 package org.abitoff.discord.sushirole.utils;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 
 import org.abitoff.discord.sushirole.SushiRole;
 
@@ -13,15 +13,18 @@ import org.abitoff.discord.sushirole.SushiRole;
  */
 public class LoggingUtils
 {
+
+	Level[] verbosityLevels = new Level[] {Level.OFF, Level.ERROR, Level.WARN, Level.INFO, Level.DEBUG, Level.TRACE, Level.ALL};
+
 	/**
 	 * TODO
 	 * 
 	 * @param format
 	 * @param args
 	 */
-	public static final void severef(String format, Object...args)
+	public static final void errorf(String format, Object...args)
 	{
-		logf(SushiRole.LOG, Level.SEVERE, format, args);
+		logf(SushiRole.LOG, Level.ERROR, format, args);
 	}
 
 	/**
@@ -31,9 +34,9 @@ public class LoggingUtils
 	 * @param format
 	 * @param args
 	 */
-	public static final void severef(Logger log, String format, Object...args)
+	public static final void errorf(Logger log, String format, Object...args)
 	{
-		logf(log, Level.SEVERE, format, args);
+		logf(log, Level.ERROR, format, args);
 	}
 
 	/**
@@ -42,9 +45,9 @@ public class LoggingUtils
 	 * @param format
 	 * @param args
 	 */
-	public static final void warningf(String format, Object...args)
+	public static final void warnf(String format, Object...args)
 	{
-		logf(SushiRole.LOG, Level.WARNING, format, args);
+		logf(SushiRole.LOG, Level.WARN, format, args);
 	}
 
 	/**
@@ -54,9 +57,9 @@ public class LoggingUtils
 	 * @param format
 	 * @param args
 	 */
-	public static final void warningf(Logger log, String format, Object...args)
+	public static final void warnf(Logger log, String format, Object...args)
 	{
-		logf(log, Level.WARNING, format, args);
+		logf(log, Level.WARN, format, args);
 	}
 
 	/**
@@ -88,9 +91,9 @@ public class LoggingUtils
 	 * @param format
 	 * @param args
 	 */
-	public static final void configf(String format, Object...args)
+	public static final void debugf(String format, Object...args)
 	{
-		logf(SushiRole.LOG, Level.CONFIG, format, args);
+		logf(SushiRole.LOG, Level.DEBUG, format, args);
 	}
 
 	/**
@@ -100,9 +103,9 @@ public class LoggingUtils
 	 * @param format
 	 * @param args
 	 */
-	public static final void configf(Logger log, String format, Object...args)
+	public static final void debugf(Logger log, String format, Object...args)
 	{
-		logf(log, Level.CONFIG, format, args);
+		logf(log, Level.DEBUG, format, args);
 	}
 
 	/**
@@ -111,32 +114,9 @@ public class LoggingUtils
 	 * @param format
 	 * @param args
 	 */
-	public static final void finef(String format, Object...args)
+	public static final void tracef(String format, Object...args)
 	{
-		logf(SushiRole.LOG, Level.FINE, format, args);
-	}
-
-	/**
-	 * TODO
-	 * 
-	 * @param log
-	 * @param format
-	 * @param args
-	 */
-	public static final void finef(Logger log, String format, Object...args)
-	{
-		logf(log, Level.FINE, format, args);
-	}
-
-	/**
-	 * TODO
-	 * 
-	 * @param format
-	 * @param args
-	 */
-	public static final void finerf(String format, Object...args)
-	{
-		logf(SushiRole.LOG, Level.FINER, format, args);
+		logf(SushiRole.LOG, Level.TRACE, format, args);
 	}
 
 	/**
@@ -146,32 +126,9 @@ public class LoggingUtils
 	 * @param format
 	 * @param args
 	 */
-	public static final void finerf(Logger log, String format, Object...args)
+	public static final void tracef(Logger log, String format, Object...args)
 	{
-		logf(log, Level.FINER, format, args);
-	}
-
-	/**
-	 * TODO
-	 * 
-	 * @param format
-	 * @param args
-	 */
-	public static final void finestf(String format, Object...args)
-	{
-		logf(SushiRole.LOG, Level.FINEST, format, args);
-	}
-
-	/**
-	 * TODO
-	 * 
-	 * @param log
-	 * @param format
-	 * @param args
-	 */
-	public static final void finestf(Logger log, String format, Object...args)
-	{
-		logf(log, Level.FINEST, format, args);
+		logf(log, Level.TRACE, format, args);
 	}
 
 	/**
@@ -196,27 +153,7 @@ public class LoggingUtils
 	 */
 	public static final void logf(Logger log, Level level, String format, Object...args)
 	{
-		String[] classMethod = getCallingClassMethod();
-		log.logp(level, classMethod[0], classMethod[1], String.format(format, args));
-	}
-
-	/**
-	 * TODO
-	 * 
-	 * @return
-	 */
-	private static final String[] getCallingClassMethod()
-	{
-		// derived from https://stackoverflow.com/a/11306854
-
-		StackTraceElement[] trace = Thread.currentThread().getStackTrace();
-		for(int i = 1; i < trace.length; i++)
-		{
-			StackTraceElement element = trace[i];
-			if (!element.getClassName().equals(LoggingUtils.class.getName())
-					&& element.getClassName().indexOf("java.lang.Thread") != 0)
-				return new String[] { element.getClassName(), element.getMethodName() };
-		}
-		return new String[] { "Unknown Class", "Unknown Method" };
+		log.log(null, LoggingUtils.class.getName(), Level.toLocationAwareLoggerInteger(level), String.format(format, args), null,
+				null);
 	}
 }

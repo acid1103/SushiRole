@@ -10,6 +10,7 @@ public class SushiRoleConfig
 	public PastebinConfig pastebin;
 	public BotConfig discord_bot;
 	public BotConfig discord_bot_dev;
+	public DiscordErrorReportingInfo discord_error_reporting;
 
 	public static class PastebinConfig
 	{
@@ -24,5 +25,10 @@ public class SushiRoleConfig
 		public String client_secret;
 		public String token;
 		public long permissions;
+	}
+
+	public static class DiscordErrorReportingInfo
+	{
+		public String channel_id;
 	}
 }
