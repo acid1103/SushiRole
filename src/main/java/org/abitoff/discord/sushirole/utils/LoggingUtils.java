@@ -13,6 +13,9 @@ import org.abitoff.discord.sushirole.SushiRole;
  */
 public class LoggingUtils
 {
+	private LoggingUtils()
+	{
+	}
 
 	Level[] verbosityLevels = new Level[] {Level.OFF, Level.ERROR, Level.WARN, Level.INFO, Level.DEBUG, Level.TRACE, Level.ALL};
 

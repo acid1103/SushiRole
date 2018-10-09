@@ -20,6 +20,10 @@ import picocli.CommandLine;
  */
 public class CommandUtils
 {
+	private CommandUtils()
+	{
+	}
+
 	/**
 	 * Creates a {@link CommandLine} and adds all the sub-commands contained in {@code superClass}.
 	 * 

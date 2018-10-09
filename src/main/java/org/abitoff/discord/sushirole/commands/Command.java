@@ -2,6 +2,7 @@ package org.abitoff.discord.sushirole.commands;
 
 import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.exceptions.ParameterException;
+import org.abitoff.discord.sushirole.utils.LoggingUtils;
 
 /**
  * TODO
@@ -34,7 +35,11 @@ public abstract class Command implements Runnable
 	@Override
 	public final void run()
 	{
+		LoggingUtils.tracef("Verifying parameters");
 		verifyParameters();
+		LoggingUtils.tracef("Verified");
+		LoggingUtils.tracef("Beginning execution");
 		executeCommand();
+		LoggingUtils.tracef("Finished execution");
 	}
 }

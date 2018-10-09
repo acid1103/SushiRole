@@ -2,13 +2,9 @@ package org.abitoff.discord.sushirole.utils;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.Reader;
-import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
-import java.nio.file.StandardOpenOption;
-
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 
 /**
  * A static utility class for convenience IO functions
@@ -17,32 +13,55 @@ import com.google.gson.JsonParseException;
  */
 public final class IOUtils
 {
-	/**
-	 * Reads JSON data from {@code file}, and constructs an instance of the type provided by {@code clazz}, filling that instance
-	 * with the data parsed from {@code file}.
-	 * 
-	 * @param gson
-	 *            The {@link Gson} instance used to parse the contents of {@code file}
-	 * @param file
-	 *            The file from which to read the JSON data
-	 * @param clazz
-	 *            The class type to fill with the JSON data
-	 * @param <T>
-	 *            The type of {@code clazz}
-	 * @return The instance of {@code T}, filled with the data parsed from {@code file}
-	 * @throws IOException
-	 *             if an error is encountered while trying to access {@code file} or the data therein
-	 * @throws JsonParseException
-	 *             if an error is encountered while trying to parse the JSON data contained within {@code file}, or if the data
-	 *             can't be matched to the {@code T} class
-	 * @see Gson#fromJson(Reader, Class)
-	 */
-	public static final <T> T readJSON(Gson gson, File file, Class<T> clazz) throws IOException,JsonParseException
+	private static final Charset UTF_8 = Charset.forName("UTF-8");
+
+	// private constructor, as this class is never meant to be constructed.
+	private IOUtils()
 	{
-		try (FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-				Reader r = Channels.newReader(channel, "UTF-8"))
-		{
-			return gson.fromJson(r, clazz);
-		}
+	}
+
+	/**
+	 * Reads the entirety of a given {@link File file}, returning the result as a String. This method uses UTF-8 encoding to
+	 * convert the data to text.
+	 * 
+	 * @param f
+	 *            The file to read
+	 * @return The contents of {@code f}, converted to a String
+	 * @throws InvalidPathException
+	 *             if {@code f} is unable to be converted to a path. (See {@link File#toPath()})
+	 * @throws IOException
+	 *             if an I/O error occurs while reading the data from the file
+	 * @throws OutOfMemoryError
+	 *             if a buffer large enough to read {@code f} is unable to be allocated due to insufficient available memory
+	 * @throws SecurityException
+	 *             if read access to {@code f} is not permitted
+	 */
+	public static final String readAll(File f) throws InvalidPathException,IOException,OutOfMemoryError,SecurityException
+	{
+		return readAll(f, UTF_8);
+	}
+
+	/**
+	 * Reads the entirety of a given {@link File file}, and returns the result as a String, using the given {@link Charset
+	 * charset} to convert the data to text.
+	 * 
+	 * @param f
+	 *            The file to read
+	 * @param charset
+	 * @return The contents of {@code f}, converted to a String
+	 * @throws InvalidPathException
+	 *             if {@code f} is unable to be converted to a path. (See {@link File#toPath()})
+	 * @throws IOException
+	 *             if an I/O error occurs while reading the data from the file
+	 * @throws OutOfMemoryError
+	 *             if a buffer large enough to read {@code f} is unable to be allocated due to insufficient available memory
+	 * @throws SecurityException
+	 *             if read access to {@code f} is not permitted
+	 */
+	public static final String readAll(File f, Charset charset)
+			throws InvalidPathException,IOException,OutOfMemoryError,SecurityException
+	{
+		// piggyback off of nio libraries
+		return new String(Files.readAllBytes(f.toPath()), charset);
 	}
 }
