@@ -15,6 +15,11 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+/**
+ * TODO
+ * 
+ * @author Steven Fontaine
+ */
 public class JSONUtils
 {
 	private JSONUtils()
@@ -237,10 +242,6 @@ public class JSONUtils
 		}
 	}
 
-	/**
-	 * @param value
-	 * @return
-	 */
 	private static Boolean castToBoolean(Object value)
 	{
 		if (value instanceof Boolean)
@@ -257,10 +258,6 @@ public class JSONUtils
 		throw new ClassCastException(String.format("The JSON value of %s cannot be cast to a boolean!", value.toString()));
 	}
 
-	/**
-	 * @param value
-	 * @return
-	 */
 	private static Long castToLong(Object value)
 	{
 		if (value instanceof Number)
@@ -287,10 +284,6 @@ public class JSONUtils
 		throw new ClassCastException(String.format("The JSON value of %s cannot be cast to a long!", value.toString()));
 	}
 
-	/**
-	 * @param value
-	 * @return
-	 */
 	private static Double castToDouble(Object value)
 	{
 		if (value instanceof Number)
@@ -317,10 +310,6 @@ public class JSONUtils
 		throw new ClassCastException(String.format("The JSON value of %s cannot be cast to a double!", value.toString()));
 	}
 
-	/**
-	 * @param value
-	 * @return
-	 */
 	private static BigInteger castToBigInteger(Object value)
 	{
 		if (value instanceof BigInteger)
@@ -353,10 +342,6 @@ public class JSONUtils
 		throw new ClassCastException(String.format("The JSON value of %s cannot be cast to a BigInteger!", value.toString()));
 	}
 
-	/**
-	 * @param value
-	 * @return
-	 */
 	private static BigDecimal castToBigDecimal(Object value)
 	{
 		if (value instanceof BigDecimal)
@@ -391,11 +376,6 @@ public class JSONUtils
 		throw new ClassCastException(String.format("The JSON value of %s cannot be cast to a String!", value.toString()));
 	}
 
-	/**
-	 * @param value
-	 * @param clazz
-	 * @return
-	 */
 	private static <T extends Enum<T>> Enum<T> castToEnum(Object value, Class<T> clazz)
 	{
 		if (value instanceof Enum<?>)
@@ -421,19 +401,6 @@ public class JSONUtils
 		throw new ClassCastException(String.format("The JSON value of %s cannot be cast to a BigDecimal!", value.toString()));
 	}
 
-	/**
-	 * @param value
-	 * @param clazz
-	 * @param optional
-	 * @return
-	 * @throws InstantiationException
-	 * @throws IllegalAccessException
-	 * @throws IllegalArgumentException
-	 * @throws InvocationTargetException
-	 * @throws NoSuchMethodException
-	 * @throws SecurityException
-	 * @throws JSONException
-	 */
 	private static <T> T[] castToArray(Object value, Class<T> clazz, boolean optional)
 			throws InstantiationException,IllegalAccessException,IllegalArgumentException,InvocationTargetException,
 			NoSuchMethodException,SecurityException,JSONException
@@ -462,45 +429,9 @@ public class JSONUtils
 			}
 			return tArray;
 		}
-		// check for null, and check value.equals(null) because of org.json.JSONObject#NULL
-		if (value != null && !value.equals(null) && value.getClass().isArray())
-		{
-			Class<?> componentType = clazz.getComponentType();
-			int length = Array.getLength(value);
-			@SuppressWarnings("unchecked")
-			T[] tArray = (T[]) Array.newInstance(componentType, length);
-			for (int i = 0; i < length; i++)
-			{
-				try
-				{
-					@SuppressWarnings("unchecked")
-					T t = (T) unwrap(Array.get(value, i), componentType, optional);
-					tArray[i] = t;
-				} catch (ClassCastException e)
-				{
-					ClassCastException cce = new ClassCastException(
-							String.format("The JSON value of %s cannot be cast to an array!", value.toString()));
-					cce.initCause(e);
-					throw cce;
-				}
-			}
-			return tArray;
-		}
 		throw new ClassCastException(String.format("The JSON value of %s cannot be cast to an array!", value.toString()));
 	}
 
-	/**
-	 * @param value
-	 * @param clazz
-	 * @param optional
-	 * @return
-	 * @throws InstantiationException
-	 * @throws IllegalAccessException
-	 * @throws IllegalArgumentException
-	 * @throws InvocationTargetException
-	 * @throws NoSuchMethodException
-	 * @throws SecurityException
-	 */
 	private static <T> T castToObject(Object value, Class<T> clazz, boolean optional) throws InstantiationException,
 			IllegalAccessException,IllegalArgumentException,InvocationTargetException,NoSuchMethodException,SecurityException
 	{
