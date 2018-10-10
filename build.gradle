@@ -1,0 +1,31 @@
+apply plugin: 'java-library'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile ('net.dv8tion:JDA:3.8.0_431') {
+    	exclude module: 'opus-java'
+    }
+    
+    compile 'info.picocli:picocli:3.6.0'
+    
+    compile 'com.github.kennedyoliveira:pastebin4j:1.2.1'
+    
+    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+    
+    compile 'org.json:json:20180813'
+    
+    compile ('com.google.crypto.tink:tink:1.2.0') {
+    	// exclude the groups we don't need, to keep things as lightweight as possible
+    	exclude group: 'com.amazonaws'
+    	exclude group: 'com.google.api-client'
+    	exclude group: 'com.google.apis'
+    	exclude group: 'com.google.guava'
+    	exclude group: 'com.google.auto.service'
+    }
+
+    // Use JUnit test framework
+    testImplementation 'junit:junit:4.12'
+}
