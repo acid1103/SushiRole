@@ -245,7 +245,7 @@ public abstract class CLICommand extends Command
 			byte[] data;
 			try
 			{
-				data = Base64.getDecoder().decode(enc.getBytes(StandardCharsets.UTF_8));
+				data = Base64.getUrlDecoder().decode(enc.getBytes(StandardCharsets.UTF_8));
 			} catch (IllegalArgumentException e)
 			{
 				throw new FatalException("Error while decoding the Base64 encoded encryption. "

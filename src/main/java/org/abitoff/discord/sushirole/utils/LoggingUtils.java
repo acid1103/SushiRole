@@ -156,7 +156,8 @@ public class LoggingUtils
 	 */
 	public static final void logf(Logger log, Level level, String format, Object...args)
 	{
-		log.log(null, LoggingUtils.class.getName(), Level.toLocationAwareLoggerInteger(level), String.format(format, args), null,
-				null);
+		if (log.isEnabledFor(level))
+			log.log(null, LoggingUtils.class.getName(), Level.toLocationAwareLoggerInteger(level), String.format(format, args),
+					null, null);
 	}
 }

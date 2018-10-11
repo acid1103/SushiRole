@@ -4,13 +4,17 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -18,6 +22,7 @@ import org.abitoff.discord.sushirole.config.SushiRoleConfig.ErrorReportingConfig
 import org.abitoff.discord.sushirole.config.SushiRoleConfig.PastebinConfig;
 import org.abitoff.discord.sushirole.pastebin.ConcurrentPastebinApi;
 import org.abitoff.discord.sushirole.utils.LoggingUtils;
+import org.abitoff.discord.sushirole.utils.Utils;
 
 import com.github.kennedyoliveira.pastebin4j.AccountCredentials;
 import com.github.kennedyoliveira.pastebin4j.Paste;
@@ -60,8 +65,17 @@ public class ExceptionHandler
 	/** TODO */
 	private static Aead encryptor;
 
-	/** TODO */
-	private static final Charset UTF_8 = StandardCharsets.UTF_8;
+	/** The max length of an error message to display in a Discord embed field */
+	private static final int maxFieldMessageLength = 128;
+
+	private static boolean reportedEncryptionTroubles = false;
+	private static final Object reportEncryptionLock = new Object();
+	private static final ScheduledExecutorService reportedEncryptionTroubleReenable = Executors.newScheduledThreadPool(1);
+
+	public static enum HeaderFlags
+	{
+		ENCRYPTED;
+	}
 
 	/**
 	 * TODO
@@ -90,10 +104,10 @@ public class ExceptionHandler
 			}
 		}
 
-		Objects.requireNonNull(pbconfig, "pbconfig");
-		Objects.requireNonNull(discordErrorReporting, "discordErrorReporting");
-		Objects.requireNonNull(errorEncryptionKey, "errorEncryptionKey");
-		Objects.requireNonNull(errorChannel, "errorChannel");
+		Objects.requireNonNull(pbconfig, "The pastebin config cannot be null!");
+		Objects.requireNonNull(discordErrorReporting, "The error reporting config cannot be null!");
+		Objects.requireNonNull(errorEncryptionKey, "The encryption key file cannot be null!");
+		Objects.requireNonNull(errorChannel, "The error channel cannot be null!");
 
 		ExceptionHandler.pastebin = new PasteBin(new AccountCredentials(pbconfig.dev_key, pbconfig.username, pbconfig.password),
 				ConcurrentPastebinApi.API);
@@ -123,10 +137,10 @@ public class ExceptionHandler
 	public static final void reportThrowable(@Nonnull Throwable t)
 	{
 		checkInitialized();
-		Objects.requireNonNull(t, "t");
-		long timestamp = System.currentTimeMillis();
-		CompletableFuture<String> future = uploadThrowableToPastebin(t, timestamp);
-		future.handleAsync((String url, Throwable futureException) -> reportToDiscord(url, futureException, t, timestamp));
+		Objects.requireNonNull(t, "The throwable cannot be null!");
+		ThrowablePacket packet = new ThrowablePacket(t, System.currentTimeMillis());
+		CompletableFuture<ThrowablePacket> future = uploadThrowableToPastebin(packet);
+		future.handleAsync((futurePacket, futureException) -> reportToDiscord(futurePacket, futureException, t));
 	}
 
 	/**
@@ -135,10 +149,16 @@ public class ExceptionHandler
 	 * @param t
 	 * @return
 	 */
-	private static final CompletableFuture<String> uploadThrowableToPastebin(Throwable t, long timestamp)
+	private static final CompletableFuture<ThrowablePacket> uploadThrowableToPastebin(ThrowablePacket packet)
 	{
-		CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> encrypt(throwableToString(t))).thenApplyAsync(
-				(String encrypted) -> uploadContentToPastebin(generatePasteTitle(encrypted, timestamp), encrypted));
+		CompletableFuture<ThrowablePacket> future = CompletableFuture.supplyAsync(() -> encrypt(packet));
+		future.thenApplyAsync(futurePacket ->
+		{
+			// only upload the data to pastebin if it's been successfully encrypted. otherwise we resort to discord
+			if (futurePacket.flags.contains(HeaderFlags.ENCRYPTED))
+				uploadContentToPastebin(generatePasteTitle(futurePacket));
+			return futurePacket;
+		});
 
 		return future;
 	}
@@ -146,28 +166,71 @@ public class ExceptionHandler
 	/**
 	 * TODO
 	 * 
-	 * @param message
+	 * @param packet
 	 * @return
 	 */
-	private static final String encrypt(String message)
+	private static final ThrowablePacket encrypt(ThrowablePacket packet)
 	{
-		byte[] nonencrypted = message.getBytes(UTF_8);
-		byte[] encrypted;
+		// get the bytes we need to encrypt
+		byte[] plaintext = packet.plaintext;
+		// the final bytes after the encryption process (including a failed encryption)
+		byte[] bytes;
 		try
 		{
 			// synchronize encryption to ensure the internal state of the encryptor remains valid
 			synchronized (encryptor)
 			{
-				encrypted = encryptor.encrypt(nonencrypted, null);
+				// encrypt the text
+				bytes = encryptor.encrypt(plaintext, null);
 			}
+			// we've finished encrypting. update the packet
+			packet.encrypted = bytes;
+			packet.flags.add(HeaderFlags.ENCRYPTED);
 		} catch (GeneralSecurityException e)
 		{
-			throw new FatalException("Error while trying to encrypt message!", e);
+			// something went wrong with the encryption
+			// check if we've encrypted within the past 5 minutes
+			if (!reportedEncryptionTroubles)
+				NO_REPORT:
+				{
+					// enter a synchronized block to prevent sending an encryption error twice
+					synchronized (reportEncryptionLock)
+					{
+						// double check that we haven't sent an encryption error in the time it took to enter the synchronized
+						// block
+						if (reportedEncryptionTroubles)
+							// if we have, break out to the end of the NO_REPORT label, skipping the error ending. this allows the
+							// synchronized block to be as short as possible.
+							break NO_REPORT;
+						else
+							// we haven't sent an encryption error yet, so set this to true to indicate that we're about to do
+							// that
+							reportedEncryptionTroubles = true;
+					}
+					// report the error, uploading it to the dev discord
+					reportThrowable(new FatalException("Error while trying to encrypt message!", e));
+					// set a timer to re-enable encryption error reporting after 5 minutes
+					reportedEncryptionTroubleReenable.schedule(() -> reportedEncryptionTroubles = false, 5, TimeUnit.MINUTES);
+				}
+			// we failed to encrypt, so just use the plaintext for the remainder of this error report
+			bytes = plaintext;
 		}
-		// base 64 encoding is actually thread safe, so there's no need to synchronize.
-		byte[] encoded = Base64.getEncoder().encode(encrypted);
-		String fin = new String(encoded, UTF_8);
-		return fin;
+	
+		// generate the header for the data, encoding whether or not the data was encrypted. we use a long here so we have plenty
+		// of room to play with if we end up needing more header flags. future compatibility and all that.
+		long headerPacked = 0;
+		for (HeaderFlags flag: packet.flags)
+			headerPacked |= 1l << flag.ordinal();
+		byte[] header = Utils.longToBytes(headerPacked);
+	
+		// merge the header and the data
+		byte[] data = Utils.merge(header, bytes);
+	
+		// encode the (hopefully encrypted) bytes to Base64 so the resulting data is easier for humans to interact with
+		byte[] encoded = Base64.getUrlEncoder().encode(data);
+		packet.encoded = encoded;
+	
+		return packet;
 	}
 
 	/**
@@ -177,15 +240,16 @@ public class ExceptionHandler
 	 * @param content
 	 * @return
 	 */
-	private static final String uploadContentToPastebin(String title, String content)
+	private static final ThrowablePacket uploadContentToPastebin(ThrowablePacket packet)
 	{
 		Paste paste = new Paste();
-		paste.setTitle(title);
+		paste.setTitle(packet.title);
 		paste.setExpiration(PasteExpiration.NEVER);
 		paste.setHighLight(PasteHighLight.TEXT);
 		paste.setVisibility(PasteVisibility.PRIVATE);
-		paste.setContent(content);
-		return pastebin.createPaste(paste);
+		paste.setContent(new String(packet.encoded, StandardCharsets.UTF_8));
+		packet.url = pastebin.createPaste(paste);
+		return packet;
 	}
 
 	/**
@@ -198,21 +262,28 @@ public class ExceptionHandler
 	 * @param timestamp
 	 * @return
 	 */
-	private static final Void reportToDiscord(String url, Throwable futureException, Throwable originalException, long timestamp)
+	private static final Void reportToDiscord(ThrowablePacket packet, Throwable futureException, Throwable originalException)
 	{
-		Message message = new MessageBuilder().setEmbed(buildErrorEmbed(originalException, futureException, url, timestamp))
-				.build();
-		if (futureException == null)
+		Message message = new MessageBuilder()
+				.setEmbed(buildErrorEmbed(originalException, futureException, packet.url, packet.timestamp)).build();
+
+		boolean encrypted = packet.flags.contains(HeaderFlags.ENCRYPTED);
+		if (futureException == null && encrypted)
 		{
 			errorChannel.sendMessage(message).queue(null, (Throwable t) -> LoggingUtils.errorf(
 					"An error has occured! It has been uploaded to Pastebin, but reporting it to Discord has failed! It can be "
 							+ "found here: %s\nThe Discord error: \n%s\n",
-					url, throwableToString(t)));
+					packet.url, throwableToString(t)));
+		} else if (!encrypted)
+		{
+			// DO SOMETHING HERE!
 		} else
 		{
+			packet.encoded = packet.plaintext;
+			generatePasteTitle(packet);
 			String original = throwableToString(originalException);
 			String pastebin = throwableToString(futureException);
-			String title = generatePasteTitle(original, timestamp);
+			String title = packet.title;
 			byte[] file = String.format("Original:\n%s\n\nPastebin:\n%s", original, pastebin).getBytes();
 
 			errorChannel.sendFile(file, title, message).queue(null, (Throwable t) -> LoggingUtils.errorf(
@@ -240,58 +311,92 @@ public class ExceptionHandler
 		int color = 0xff0000;
 		Instant time = Instant.ofEpochMilli(timestamp);
 		EmbedBuilder builder = new EmbedBuilder().setTitle(title, url).setColor(color).setTimestamp(time);
+
 		if (original instanceof DiscordUserException)
-		{
-			Message m = ((DiscordUserException) original).context;
-			String authorName = String.format("%s>%s>%s#%s", m.getGuild().getName(), m.getChannel().getName(),
-					m.getAuthor().getName(), m.getAuthor().getDiscriminator());
-			String authorIconURL = m.getAuthor().getEffectiveAvatarUrl();
-			builder.setAuthor(authorName, null, authorIconURL);
-		}
-		if (pastebin == null)
-		{
-			String orig = String.format("**%s**\n%s", original.getClass().getSimpleName(),
-					snipMessageToLength(original.getMessage(), 128));
-			builder.addField("Exception:", orig, false);
-		} else
-		{
-			String past = String.format("**%s**\n%s", pastebin.getClass().getSimpleName(),
-					snipMessageToLength(pastebin.getMessage(), 128));
-			String orig = String.format("**%s**\n%s", original.getClass().getSimpleName(),
-					snipMessageToLength(original.getMessage(), 128));
-			builder.addField("Pastebin:", past, false);
-			builder.addField("Original:", orig, false);
-		}
-		Throwable t = original;
-		int i = 0;
-		while (t.getCause() != null && i < 3)
-		{
-			t = t.getCause();
-			i++;
-			String value = String.format("**%s**\n%s", t.getClass().getSimpleName(), snipMessageToLength(t.getMessage(), 128));
-			builder.addField("Caused by:", value, false);
-		}
-		if (t.getCause() != null)
-		{
-			builder.addField("Caused by:", "**Etc...**", false);
-		}
+			appendMessageInformation(original, builder);
+		appendErrorInformation(original, pastebin, builder);
+		appendCauses(original, builder);
+
 		return builder.build();
 	}
 
 	/**
 	 * TODO
 	 * 
-	 * @param message
-	 * @param length
+	 * @param original
+	 * @param builder
+	 */
+	private static void appendMessageInformation(Throwable original, EmbedBuilder builder)
+	{
+		Message m = ((DiscordUserException) original).context;
+		String authorName = String.format("%s>%s>%s#%s", m.getGuild().getName(), m.getChannel().getName(),
+				m.getAuthor().getName(), m.getAuthor().getDiscriminator());
+		String authorIconURL = m.getAuthor().getEffectiveAvatarUrl();
+		builder.setAuthor(authorName, null, authorIconURL);
+	}
+
+	/**
+	 * TODO
+	 * 
+	 * @param original
+	 * @param pastebin
+	 * @param builder
+	 */
+	private static void appendErrorInformation(Throwable original, Throwable pastebin, EmbedBuilder builder)
+	{
+		if (pastebin == null)
+		{
+			String message = generateFieldMessage(original);
+			builder.addField("Exception:", message, false);
+		} else
+		{
+			String pmessage = generateFieldMessage(pastebin);
+			String omessage = generateFieldMessage(original);
+			builder.addField("Pastebin:", pmessage, false);
+			builder.addField("Original:", omessage, false);
+		}
+	}
+
+	/**
+	 * TODO
+	 * 
+	 * @param t
+	 * @param builder
+	 */
+	private static void appendCauses(Throwable t, EmbedBuilder builder)
+	{
+		int i = 0;
+		while (t.getCause() != null && i < 3)
+		{
+			t = t.getCause();
+			i++;
+			String message = generateFieldMessage(t);
+			builder.addField("Caused by:", message, false);
+		}
+		if (t.getCause() != null)
+		{
+			builder.addField("Caused by:", "**Etc...**", false);
+		}
+	}
+
+	/**
+	 * TODO
+	 * 
+	 * @param t
 	 * @return
 	 */
-	private static final String snipMessageToLength(String message, int length)
+	private static String generateFieldMessage(Throwable t)
 	{
-		if (message.length() > length)
+		String message;
+		if (t.getMessage() != null && !t.getMessage().equals(""))
 		{
-			return message.substring(0, Math.max(0, length - 3)) + "...";
-		}
-		return message;
+			message = t.getMessage();
+			if (message.length() > maxFieldMessageLength)
+				message = message.substring(0, Math.max(0, maxFieldMessageLength - 3)) + "...";
+		} else
+			message = "No message given.";
+
+		return String.format("**%s**\n%s", t.getClass().getSimpleName(), message);
 	}
 
 	/**
@@ -303,7 +408,7 @@ public class ExceptionHandler
 	 */
 	public static final String throwableToString(@Nonnull Throwable t) throws NullPointerException
 	{
-		Objects.requireNonNull(t, "t");
+		Objects.requireNonNull(t, "The throwable cannot be null!");
 		StringWriter writer = new StringWriter();
 		t.printStackTrace(new PrintWriter(writer));
 		String stackTrace = writer.toString();
@@ -316,9 +421,57 @@ public class ExceptionHandler
 	 * @param pasteContent
 	 * @return
 	 */
-	private static final String generatePasteTitle(String pasteContent, long timestamp)
+	private static final ThrowablePacket generatePasteTitle(ThrowablePacket packet)
 	{
-		return "SushiRoleErr:" + timestamp + "-" + pasteContent.hashCode();
+		String twiddledTimestamp = longToUnsignedPaddedString(bitTwiddle(packet.timestamp));
+		int hashcode = Arrays.hashCode(packet.encoded);
+		packet.title = String.format("SushiRoleErr:%s-%010d", twiddledTimestamp, Integer.toUnsignedLong(hashcode));
+		return packet;
+	}
+
+	/**
+	 * TODO
+	 * 
+	 * @param l
+	 * @return
+	 */
+	private static final long bitTwiddle(long l)
+	{
+		long q = 0;
+		long bit;
+		int shiftAmount;
+		for (int i = 0; i < 64; i++)
+		{
+			bit = 1l << i & l;
+			if ((i & 1) == 0)
+			{
+				shiftAmount = 63 - 3 * i / 2;
+				if (shiftAmount > 0)
+					q |= bit << shiftAmount;
+				else
+					q |= bit >> -shiftAmount;
+			} else
+			{
+				shiftAmount = i / 2 + 1;
+				q |= bit >> shiftAmount;
+			}
+		}
+		return q;
+	}
+
+	/**
+	 * TODO
+	 * 
+	 * @param l
+	 * @return
+	 */
+	private static final String longToUnsignedPaddedString(long l)
+	{
+		String s = Long.toUnsignedString(l);
+		byte[] prepend = new byte[20 - s.length()];
+		for (int i = 0; i < prepend.length; i++)
+			prepend[i] = '0';
+		return new String(prepend) + s;
 	}
 
 	/**
@@ -330,5 +483,23 @@ public class ExceptionHandler
 	{
 		if (!initialized)
 			throw new FatalException("ExceptionHandler has not been initiated!");
+	}
+
+	private static final class ThrowablePacket
+	{
+		private long timestamp;
+		private byte[] plaintext;
+		private byte[] encrypted;
+		private byte[] encoded;
+		private EnumSet<HeaderFlags> flags;
+		private String title;
+		private String url;
+
+		private ThrowablePacket(Throwable t, long timestamp)
+		{
+			this.timestamp = timestamp;
+			plaintext = throwableToString(t).getBytes(StandardCharsets.UTF_8);
+			flags = EnumSet.noneOf(HeaderFlags.class);
+		}
 	}
 }
