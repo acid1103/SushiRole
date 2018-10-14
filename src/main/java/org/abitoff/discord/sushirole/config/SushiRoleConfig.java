@@ -66,10 +66,9 @@ public class SushiRoleConfig
 			throw new FatalException(e);
 		} catch (Exception e)
 		{
-			throw new FatalException(String.format(
-					"Error encountered trying to read config file. Ensure a file exists at %s. Ensure the file has read access. "
-							+ "Ensure the file is valid JSON data. Ensure the file has the required structure.",
-					f.getAbsolutePath()), e);
+			throw new FatalException(String.format("Error encountered trying to read config file. Ensure a file exists at %s. "
+					+ "Ensure the file has read access. Ensure the file is valid JSON data. Ensure the file has the required "
+					+ "structure.", f.getAbsolutePath()), e);
 		}
 	}
 }

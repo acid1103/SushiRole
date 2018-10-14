@@ -1,11 +1,13 @@
 package org.abitoff.discord.sushirole.commands.cli;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -21,6 +23,7 @@ import org.abitoff.discord.sushirole.config.SushiRoleConfig;
 import org.abitoff.discord.sushirole.config.SushiRoleConfig.BotConfig;
 import org.abitoff.discord.sushirole.events.GlobalEventListener;
 import org.abitoff.discord.sushirole.exceptions.ExceptionHandler;
+import org.abitoff.discord.sushirole.exceptions.ExceptionHandler.HeaderFlag;
 import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.exceptions.ParameterException;
 import org.abitoff.discord.sushirole.utils.CommandUtils;
@@ -126,15 +129,14 @@ public abstract class CLICommand extends Command
 							shard.awaitReady();
 						} catch (InterruptedException e)
 						{
-							LoggingUtils.warnf(
-									"InteruptedException while awaiting shard! ExceptionHandler might not initiate properly! Stack trace:\n%s",
-									ExceptionHandler.throwableToString(e));
+							LoggingUtils.warnf("InteruptedException while awaiting shard! ExceptionHandler might not initiate "
+									+ "properly! Stack trace:\n%s", ExceptionHandler.throwableToString(e));
 						}
 						TextChannel errorChannel = shard.getTextChannelById(config.discord_dev_guild.error_channel_id);
 						if (errorChannel != null)
 						{
-							ExceptionHandler.initiate(config.pastebin, config.discord_dev_guild,
-									new File("./sushiroleconfig/error_encryption_key"), errorChannel);
+							ExceptionHandler.initialize(config.pastebin, new File("./sushiroleconfig/error_encryption_key"),
+									errorChannel);
 						}
 					});
 					exceptionHandlerWaitingFutures.add(future);
@@ -248,42 +250,65 @@ public abstract class CLICommand extends Command
 				data = Base64.getUrlDecoder().decode(enc.getBytes(StandardCharsets.UTF_8));
 			} catch (IllegalArgumentException e)
 			{
-				throw new FatalException("Error while decoding the Base64 encoded encryption. "
-						+ "Ensure the input file hasn't been tampered with.", e);
+				throw new FatalException("Error while decoding the Base64 encoded encryption. Ensure the input file hasn't been "
+						+ "tampered with.", e);
 			}
 
-			// initiate google tink's AEAD services
-			LoggingUtils.infof("Starting decryption service...");
+			// read the header flags from the file
+			LoggingUtils.infof("Reading file header...");
+			EnumSet<HeaderFlag> headerFlags;
 			try
 			{
-				AeadConfig.register();
-			} catch (GeneralSecurityException e)
+				ByteArrayInputStream bais = new ByteArrayInputStream(data);
+				headerFlags = HeaderFlag.generateFlags(bais);
+				data = new byte[bais.available()];
+				bais.read(data);
+			} catch (IOException e)
 			{
-				throw new FatalException("Something went wrong while starting the decryption service... Good luck.", e);
+				throw new FatalException("Error while trying to read the file header. Ensure the input file hasn't been tampered "
+						+ "with or modified.", e);
 			}
 
-			// read the encryption key from file
-			LoggingUtils.infof("Reading encryption key...");
-			KeysetHandle keysetHandle;
-			try
-			{
-				keysetHandle = CleartextKeysetHandle
-						.read(JsonKeysetReader.withFile(new File("./sushiroleconfig/error_encryption_key")));
-			} catch (GeneralSecurityException | IOException e)
-			{
-				throw new FatalException("Error while trying to read decryption key. "
-						+ "Ensure the key file is in the correct location and format.", e);
-			}
-
-			// decrypt the input file
-			LoggingUtils.infof("Decrypting file...");
 			String plaintext;
-			try
+			if (headerFlags.contains(HeaderFlag.ENCRYPTED))
 			{
-				plaintext = new String(AeadFactory.getPrimitive(keysetHandle).decrypt(data, null), StandardCharsets.UTF_8);
-			} catch (GeneralSecurityException e)
+				// initiate google tink's AEAD services
+				LoggingUtils.infof("Starting decryption service...");
+				try
+				{
+					AeadConfig.register();
+				} catch (GeneralSecurityException e)
+				{
+					throw new FatalException("Something went wrong while starting the decryption service... Good luck.", e);
+				}
+
+				// read the encryption key from file
+				LoggingUtils.infof("Reading encryption key...");
+				KeysetHandle keysetHandle;
+				try
+				{
+					keysetHandle = CleartextKeysetHandle
+							.read(JsonKeysetReader.withFile(new File("./sushiroleconfig/error_encryption_key")));
+				} catch (GeneralSecurityException | IOException e)
+				{
+					throw new FatalException("Error while trying to read decryption key. Ensure the key file is in the correct "
+							+ "location and format.", e);
+				}
+
+				// decrypt the input file
+				LoggingUtils.infof("Decrypting file...");
+				try
+				{
+					plaintext = new String(AeadFactory.getPrimitive(keysetHandle).decrypt(data, null), StandardCharsets.UTF_8);
+				} catch (GeneralSecurityException e)
+				{
+					throw new FatalException("Something went wrong while starting the decrypting the file... Good luck.", e);
+				}
+			} else
 			{
-				throw new FatalException("Something went wrong while starting the decrypting the file... Good luck.", e);
+				// file didn't have the encrypted header flag, so the remaining data should be plaintext
+				LoggingUtils.infof("File was not encrypted. Continuing with plaintext...");
+				plaintext = new String(data, StandardCharsets.UTF_8);
 			}
 
 			// if we're not overwriting, create a new file

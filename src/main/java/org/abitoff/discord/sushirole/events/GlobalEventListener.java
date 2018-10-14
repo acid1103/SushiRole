@@ -32,9 +32,5 @@ public class GlobalEventListener extends ListenerAdapter
 
 	public void onReady(ReadyEvent event)
 	{
-		// event.getJDA().getTextChannelById(490425104787046400L).sendMessage(new MessageBuilder().setEmbed(new
-		// EmbedBuilder().setTitle("__Guild__\\ __Channel__\\ __\\*Special User\\*__").build()).build()).queue((Message
-		// m)->{System.out.println("Success");event.getJDA().shutdown();},(Throwable
-		// e)->{e.printStackTrace();event.getJDA().shutdown();});
 	}
 }

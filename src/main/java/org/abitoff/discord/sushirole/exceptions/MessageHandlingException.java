@@ -2,7 +2,10 @@ package org.abitoff.discord.sushirole.exceptions;
 
 import net.dv8tion.jda.core.entities.Message;
 
-public class DiscordUserException extends Exception
+/**
+ * @author Steven Fontaine
+ */
+public class MessageHandlingException extends Exception
 {
 	private static final long serialVersionUID = 6862757518549700345L;
 
@@ -16,7 +19,7 @@ public class DiscordUserException extends Exception
 	 * @param context
 	 *            The {@link Message message} that caused this exception
 	 */
-	public DiscordUserException(Message context)
+	public MessageHandlingException(Message context)
 	{
 		this.context = context;
 	}
@@ -30,7 +33,7 @@ public class DiscordUserException extends Exception
 	 * @param message
 	 *            the detail message. The detail message is saved for later retrieval by the {@link #getMessage()} method.
 	 */
-	public DiscordUserException(Message context, String message)
+	public MessageHandlingException(Message context, String message)
 	{
 		super(message);
 		this.context = context;
@@ -47,7 +50,7 @@ public class DiscordUserException extends Exception
 	 *            the cause (which is saved for later retrieval by the {@link #getCause()} method). (A {@code null} value is
 	 *            permitted, and indicates that the cause is nonexistent or unknown.)
 	 */
-	public DiscordUserException(Message context, Throwable cause)
+	public MessageHandlingException(Message context, Throwable cause)
 	{
 		super(cause);
 		this.context = context;
@@ -67,7 +70,7 @@ public class DiscordUserException extends Exception
 	 *            the cause (which is saved for later retrieval by the {@link #getCause()} method). (A {@code null} value is
 	 *            permitted, and indicates that the cause is nonexistent or unknown.)
 	 */
-	public DiscordUserException(Message context, String message, Throwable cause)
+	public MessageHandlingException(Message context, String message, Throwable cause)
 	{
 		super(message, cause);
 		this.context = context;
@@ -88,7 +91,7 @@ public class DiscordUserException extends Exception
 	 * @param writableStackTrace
 	 *            whether or not the stack trace should be writable
 	 */
-	public DiscordUserException(Message context, String message, Throwable cause, boolean enableSuppression,
+	public MessageHandlingException(Message context, String message, Throwable cause, boolean enableSuppression,
 			boolean writableStackTrace)
 	{
 		super(message, cause, enableSuppression, writableStackTrace);
