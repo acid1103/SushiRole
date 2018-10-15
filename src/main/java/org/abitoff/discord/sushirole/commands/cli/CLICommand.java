@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.GeneralSecurityException;
 import java.util.Base64;
 import java.util.EnumSet;
@@ -27,7 +28,6 @@ import org.abitoff.discord.sushirole.exceptions.ExceptionHandler.HeaderFlag;
 import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.exceptions.ParameterException;
 import org.abitoff.discord.sushirole.utils.CommandUtils;
-import org.abitoff.discord.sushirole.utils.IOUtils;
 import org.abitoff.discord.sushirole.utils.LoggingUtils;
 
 import com.google.crypto.tink.CleartextKeysetHandle;
@@ -233,10 +233,10 @@ public abstract class CLICommand extends Command
 		{
 			// read the file into memory
 			LoggingUtils.infof("Reading file...");
-			String enc;
+			byte[] enc;
 			try
 			{
-				enc = IOUtils.readAll(in);
+				enc = Files.readAllBytes(in.toPath());
 			} catch (Exception e)
 			{
 				throw new FatalException("Error while trying to read input file.", e);
@@ -247,7 +247,7 @@ public abstract class CLICommand extends Command
 			byte[] data;
 			try
 			{
-				data = Base64.getUrlDecoder().decode(enc.getBytes(StandardCharsets.UTF_8));
+				data = Base64.getUrlDecoder().decode(enc);
 			} catch (IllegalArgumentException e)
 			{
 				throw new FatalException("Error while decoding the Base64 encoded encryption. Ensure the input file hasn't been "
