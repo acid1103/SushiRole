@@ -26,4 +26,20 @@ public class Utils
 		return merge;
 	}
 
+	public static int divideCeil(int n, int d)
+	{
+		int q = n / d;
+		if (q * d != n)
+			q++;
+		return q;
+	}
+
+	public static long divideCeil(long n, long d)
+	{
+		long q = n / d;
+		if (q * d != n)
+			q++;
+		return q;
+	}
+
 }
