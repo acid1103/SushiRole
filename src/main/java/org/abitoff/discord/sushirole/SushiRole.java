@@ -9,6 +9,10 @@ import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.utils.LoggingUtils;
 import org.slf4j.LoggerFactory;
 
+import com.google.crypto.tink.CleartextKeysetHandle;
+import com.google.crypto.tink.JsonKeysetReader;
+import com.google.crypto.tink.KeysetHandle;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;

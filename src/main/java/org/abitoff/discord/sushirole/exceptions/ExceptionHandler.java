@@ -98,7 +98,7 @@ public class ExceptionHandler
 	private static final ScheduledExecutorService reportedEncryptionTroubleReenablePool = Executors.newScheduledThreadPool(1);
 
 	/** The byte array used to separate the header data from the encrypted data in the file generated and sent to Pastebin */
-	private static final byte[] headerSeparator = new byte[] {'.'};
+	public static final byte[] headerSeparator = new byte[] {'.'};
 
 	/** The color to use for error embeds */
 	private static final int errorEmbedColor = 0xff0000;
@@ -159,8 +159,10 @@ public class ExceptionHandler
 		 * @param header
 		 *            the encoded bytes to read the header flags from
 		 * @return the set of HeaderFlags obtained from the byte array
+		 * @throws IllegalArgumentException
+		 *             if {@code header} is not valid Base64
 		 */
-		public static EnumSet<HeaderFlag> generateFlags(byte[] header)
+		public static EnumSet<HeaderFlag> generateFlags(byte[] header) throws IllegalArgumentException
 		{
 			byte[] decoded = Base64.getUrlDecoder().decode(header);
 			EnumSet<HeaderFlag> flags = EnumSet.noneOf(HeaderFlag.class);

@@ -1,6 +1,5 @@
 package org.abitoff.discord.sushirole.commands.cli;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -233,25 +232,28 @@ public abstract class CLICommand extends Command
 		{
 			// read the file into memory
 			LoggingUtils.infof("Reading file...");
-			byte[] enc;
+			byte[] file;
 			try
 			{
-				enc = Files.readAllBytes(in.toPath());
+				file = Files.readAllBytes(in.toPath());
 			} catch (Exception e)
 			{
 				throw new FatalException("Error while trying to read input file.", e);
 			}
 
-			// remove the base64 encoding from the file
-			LoggingUtils.infof("Decoding file...");
-			byte[] data;
+			// split header from data
+			byte[] header_enc;
+			byte[] data_enc;
 			try
 			{
-				data = Base64.getUrlDecoder().decode(enc);
-			} catch (IllegalArgumentException e)
+				String[] parts = new String(file, StandardCharsets.UTF_8)
+						.split(new String(ExceptionHandler.headerSeparator, StandardCharsets.UTF_8));
+				header_enc = parts[0].getBytes(StandardCharsets.UTF_8);
+				data_enc = parts[1].getBytes(StandardCharsets.UTF_8);
+			} catch (Exception e)
 			{
-				throw new FatalException("Error while decoding the Base64 encoded encryption. Ensure the input file hasn't been "
-						+ "tampered with.", e);
+				throw new FatalException("The file is not properly formatted. Ensure it hasn't been tampered with and that it "
+						+ "was created with " + SushiRole.VERSION + ".");
 			}
 
 			// read the header flags from the file
@@ -259,14 +261,22 @@ public abstract class CLICommand extends Command
 			EnumSet<HeaderFlag> headerFlags;
 			try
 			{
-				ByteArrayInputStream bais = new ByteArrayInputStream(data);
-				headerFlags = HeaderFlag.generateFlags(bais);
-				data = new byte[bais.available()];
-				bais.read(data);
-			} catch (IOException e)
+				headerFlags = HeaderFlag.generateFlags(header_enc);
+			} catch (IllegalArgumentException e)
 			{
-				throw new FatalException("Error while trying to read the file header. Ensure the input file hasn't been tampered "
-						+ "with or modified.", e);
+				throw new FatalException("Error while decoding the header. Ensure the file hasn't been tampered with.");
+			}
+
+			// remove the base64 encoding from the file
+			LoggingUtils.infof("Decoding file...");
+			byte[] data;
+			try
+			{
+				data = Base64.getUrlDecoder().decode(data_enc);
+			} catch (IllegalArgumentException e)
+			{
+				throw new FatalException("Error while decoding the Base64 encoded encryption. Ensure the input file hasn't been "
+						+ "tampered with.", e);
 			}
 
 			String plaintext;
