@@ -2,6 +2,7 @@ package org.abitoff.discord.sushirole.exceptions;
 
 import java.security.GeneralSecurityException;
 
+import org.abitoff.discord.sushirole.exceptions.ThrowableReporter.ThrowableReportingException.ExceptionType;
 import org.abitoff.discord.sushirole.pastebin.ConcurrentPastebinApi;
 
 import com.github.kennedyoliveira.pastebin4j.AccountCredentials;
@@ -26,20 +27,33 @@ public class ThrowableReporter
 		this.log = log;
 	}
 
-	synchronized void setReportingDiscordChannel(TextChannel channel)
+	synchronized void setReportingDiscordChannel(TextChannel channel) throws ThrowableReportingException
 	{
 		reportingChannel = channel;
+		if (!channel.canTalk())
+			throw new ThrowableReportingException("Bot must be able to talk in the error reporting channel to send reports!",
+					ExceptionType.DISCORD);
 	}
 
-	synchronized void setPastebinAccountCredentials(AccountCredentials credentials)
+	synchronized void setPastebinAccountCredentials(AccountCredentials credentials) throws ThrowableReportingException
 	{
 		pastebin = new PasteBin(credentials, ConcurrentPastebinApi.API);
+		//pastebin.fetchUserInformation().getAccountType()
 	}
 
-	synchronized void setPastebinEncryptionKey(KeysetHandle AEADEncryptionKey) throws GeneralSecurityException
+	void setPastebinEncryptionKey(KeysetHandle AEADEncryptionKey) throws ThrowableReportingException
 	{
-		AeadConfig.register();
-		encryptor = AeadFactory.getPrimitive(AEADEncryptionKey);
+		try
+		{
+			AeadConfig.register();
+			synchronized (this)
+			{
+				encryptor = AeadFactory.getPrimitive(AEADEncryptionKey);
+			}
+		} catch (Exception e)
+		{
+			throw new ThrowableReportingException(e, ExceptionType.ENCRYPTION);
+		}
 	}
 
 	public static class ThrowableReportingException extends RuntimeException
