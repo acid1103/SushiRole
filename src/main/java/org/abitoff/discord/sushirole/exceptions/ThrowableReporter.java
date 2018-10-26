@@ -1,9 +1,11 @@
 package org.abitoff.discord.sushirole.exceptions;
 
 import java.security.GeneralSecurityException;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.abitoff.discord.sushirole.exceptions.ThrowableReporter.ThrowableReportingException.ExceptionType;
 import org.abitoff.discord.sushirole.pastebin.ConcurrentPastebinApi;
+import org.abitoff.discord.sushirole.utils.LockManager;
 
 import com.github.kennedyoliveira.pastebin4j.AccountCredentials;
 import com.github.kennedyoliveira.pastebin4j.PasteBin;
@@ -17,17 +19,24 @@ import net.dv8tion.jda.core.entities.TextChannel;
 
 public class ThrowableReporter
 {
+	private final LockManager lockManager = new LockManager("log", "reportingChannel", "pastebin", "encryptor", "alwaysLog");
 	volatile Logger log;
 	volatile TextChannel reportingChannel;
 	volatile PasteBin pastebin;
 	volatile Aead encryptor;
+	volatile boolean alwaysLog;
 
-	synchronized void setLogger(Logger log)
+	public ThrowableReporter()
 	{
-		this.log = log;
+
 	}
 
-	synchronized void setReportingDiscordChannel(TextChannel channel) throws ThrowableReportingException
+	public void setLogger(Logger log)
+	{
+		lockManager.synchronize(() -> this.log = log, "log");
+	}
+
+	private void _setReportingDiscordChannel(TextChannel channel) throws ThrowableReportingException
 	{
 		reportingChannel = channel;
 		if (!channel.canTalk())
@@ -35,10 +44,14 @@ public class ThrowableReporter
 					ExceptionType.DISCORD);
 	}
 
-	synchronized void setPastebinAccountCredentials(AccountCredentials credentials) throws ThrowableReportingException
+	public void setReportingDiscordChannel(TextChannel channel) throws ThrowableReportingException
 	{
-		pastebin = new PasteBin(credentials, ConcurrentPastebinApi.API);
-		//pastebin.fetchUserInformation().getAccountType()
+		lockManager.synchronize(() -> _setReportingDiscordChannel(channel), "reportingChannel");
+	}
+
+	public void setPastebinAccountCredentials(AccountCredentials credentials) throws ThrowableReportingException
+	{
+		lockManager.synchronize(() -> pastebin = new PasteBin(credentials, ConcurrentPastebinApi.API), "pastebin");
 	}
 
 	void setPastebinEncryptionKey(KeysetHandle AEADEncryptionKey) throws ThrowableReportingException
@@ -46,15 +59,22 @@ public class ThrowableReporter
 		try
 		{
 			AeadConfig.register();
-			synchronized (this)
+			lockManager.synchronize(() ->
 			{
-				encryptor = AeadFactory.getPrimitive(AEADEncryptionKey);
-			}
-		} catch (Exception e)
+				try
+				{
+					encryptor = AeadFactory.getPrimitive(AEADEncryptionKey);
+				} catch (GeneralSecurityException e)
+				{
+					throw new ThrowableReportingException(e, ExceptionType.ENCRYPTION);
+				}
+			}, "encryptor");
+		} catch (GeneralSecurityException e)
 		{
 			throw new ThrowableReportingException(e, ExceptionType.ENCRYPTION);
 		}
 	}
+	
 
 	public static class ThrowableReportingException extends RuntimeException
 	{

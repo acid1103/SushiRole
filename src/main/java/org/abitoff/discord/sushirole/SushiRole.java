@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import com.google.crypto.tink.CleartextKeysetHandle;
 import com.google.crypto.tink.JsonKeysetReader;
 import com.google.crypto.tink.KeysetHandle;
+import com.google.crypto.tink.aead.AeadConfig;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -27,7 +28,7 @@ public class SushiRole
 	public static final Logger LOG = LOGGER_CONTEXT.getLogger(SushiRole.class);
 	public static final String VERSION = "SushiRole v0.0.1a";
 
-	public static void main(String[] args) throws FatalException,GeneralSecurityException,IOException
+	public static void main(String[] args) throws FatalException,GeneralSecurityException,IOException,InterruptedException
 	{
 		TTLLLayout layout = new TTLLLayout();
 		layout.setContext(LOGGER_CONTEXT);
