@@ -164,11 +164,13 @@ public abstract class CLICommand extends Command
 	{
 		@Parameters(
 				index = "0",
-				paramLabel = "<input file>")
+				paramLabel = "<input file>",
+				descriptionKey = "in")
 		private File in;
 		@Parameters(
 				index = "1",
-				paramLabel = "<output file>")
+				paramLabel = "<output file>",
+				descriptionKey = "out")
 		private File out;
 
 		boolean overwrite = false;

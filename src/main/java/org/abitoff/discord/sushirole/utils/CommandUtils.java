@@ -96,7 +96,7 @@ public class CommandUtils
 			{
 				// add the command parameters class to our map so we can easily get it later
 				commands.put(commandName, command);
-				LoggingUtils.infof("Added the CLI command \"%s\".", commandName);
+				LoggingUtils.infof("Added the command \"%s\".", commandName);
 			} else
 			{
 				// set the default command

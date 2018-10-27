@@ -1,7 +1,6 @@
 package org.abitoff.discord.sushirole.exceptions;
 
 import java.security.GeneralSecurityException;
-import java.util.concurrent.locks.ReentrantLock;
 
 import org.abitoff.discord.sushirole.exceptions.ThrowableReporter.ThrowableReportingException.ExceptionType;
 import org.abitoff.discord.sushirole.pastebin.ConcurrentPastebinApi;
@@ -74,7 +73,6 @@ public class ThrowableReporter
 			throw new ThrowableReportingException(e, ExceptionType.ENCRYPTION);
 		}
 	}
-	
 
 	public static class ThrowableReportingException extends RuntimeException
 	{

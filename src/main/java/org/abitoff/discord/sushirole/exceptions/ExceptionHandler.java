@@ -39,6 +39,7 @@ import com.google.crypto.tink.aead.AeadConfig;
 import com.google.crypto.tink.aead.AeadFactory;
 
 import net.dv8tion.jda.core.EmbedBuilder;
+import net.dv8tion.jda.core.JDA;
 import net.dv8tion.jda.core.MessageBuilder;
 import net.dv8tion.jda.core.entities.Message;
 import net.dv8tion.jda.core.entities.MessageEmbed;
@@ -219,12 +220,12 @@ public class ExceptionHandler
 			}
 		}
 
-		if (errorEncryptionKey != null)
+		if (errorEncryptionKey == null)
 		{
 			LoggingUtils.warnf("The encryption key passed to ExceptionHandler was null. Exceptions handled by ExceptionHandler "
 					+ "will not be uploaded to Pastebin!");
 			doPastebin = false;
-		} else if (pbconfig != null)
+		} else if (pbconfig == null)
 		{
 			LoggingUtils.warnf("The Pastebin configuration passed to ExceptionHandler was null. Exceptions handled by "
 					+ "ExceptionHandler will not be uploaded to Pastebin!");
