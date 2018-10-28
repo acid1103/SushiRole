@@ -30,7 +30,7 @@ class DiscordCommandParseHandler implements IParseResultHandler2<Void>
 
 		if (dc.getHelpFlag())
 		{
-			Message helpMessage = DiscordCommand.getHelpMessage(command).build();
+			Message helpMessage = DiscordCommand.getHelpMessage(command);
 			event.getChannel().sendMessage(helpMessage).complete();
 		} else
 		{

@@ -13,7 +13,6 @@ import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.exceptions.ParameterException;
 import org.abitoff.discord.sushirole.utils.CommandUtils;
 
-import net.dv8tion.jda.core.MessageBuilder;
 import net.dv8tion.jda.core.entities.Message;
 import net.dv8tion.jda.core.events.Event;
 import net.dv8tion.jda.core.events.message.guild.GuildMessageReceivedEvent;
@@ -25,7 +24,11 @@ public abstract class DiscordCommand extends Command
 {
 	private static final CommandLine cl = CommandUtils.generateCommands(DiscordCommand.class,
 			ResourceBundle.getBundle("locale.discord", Locale.US));
-	private static final ConcurrentHashMap<String,MessageBuilder> helpMessages = CommandUtils.generateHelpMessages(cl);
+	static
+	{
+		cl.setExpandAtFiles(false);
+	}
+	private static final ConcurrentHashMap<String,Message> helpMessages = CommandUtils.generateHelpMessages(cl);
 
 	@CommandLine.Command(
 			name = "test")
@@ -36,10 +39,17 @@ public abstract class DiscordCommand extends Command
 				usageHelp = true)
 		private boolean helpFlag = false;
 
-		@Parameters(
-				arity = "2",
+		@Option(
+				names = {"-f", "--file"},
 				description = "File(s) to process.")
-		private File[] inputFiles;
+		private boolean inputFiles;
+
+		@Option(
+				names = {"-F", "--file2"},
+				arity = "2",
+				description = "File(s) to process.",
+				required = false)
+		private File inputFiles2;
 
 		@Override
 		public boolean getHelpFlag()
@@ -68,7 +78,10 @@ public abstract class DiscordCommand extends Command
 					if (names[i].length() > tab)
 						tab = names[i].length();
 					Object obj = f.get(this);
-					if (obj.getClass().isArray())
+					if (obj == null)
+					{
+						values[i] = "null";
+					} else if (obj.getClass().isArray())
 					{
 						Object[] objAr = new Object[Array.getLength(obj)];
 						for (int j = 0; j < objAr.length; j++)
@@ -273,7 +286,7 @@ public abstract class DiscordCommand extends Command
 		cl.parseWithHandlers(new DiscordCommandParseHandler(event), new DiscordCommandExceptionHandler(event), args);
 	}
 
-	public static MessageBuilder getHelpMessage(CommandLine command)
+	public static Message getHelpMessage(CommandLine command)
 	{
 		return helpMessages.get(command.getCommandName());
 	}

@@ -131,11 +131,11 @@ public class CommandUtils
 		return cl;
 	}
 
-	public static final ConcurrentHashMap<String,MessageBuilder> generateHelpMessages(CommandLine defaultCommand)
+	public static final ConcurrentHashMap<String,Message> generateHelpMessages(CommandLine defaultCommand)
 	{
 		// it's very very very important that this is concurrent, because many threads will potentially be accessing this map
 		// simultaneously.
-		ConcurrentHashMap<String,MessageBuilder> messages = new ConcurrentHashMap<String,MessageBuilder>();
+		ConcurrentHashMap<String,Message> messages = new ConcurrentHashMap<String,Message>();
 		EmbedBuilder builder = new EmbedBuilder();
 		builder.setColor(0x50b0ff);
 		builder.setTitle("SushiRole");
@@ -150,11 +150,11 @@ public class CommandUtils
 			messages.put(command.getCommandName(), generateCommandHelpMessage(command));
 		}
 		builder.setFooter(SushiRole.VERSION, null);
-		messages.put(defaultCommand.getCommandName(), new MessageBuilder().setEmbed(builder.build()));
+		messages.put(defaultCommand.getCommandName(), new MessageBuilder().setEmbed(builder.build()).build());
 		return messages;
 	}
 
-	private static final MessageBuilder generateCommandHelpMessage(CommandLine command)
+	private static final Message generateCommandHelpMessage(CommandLine command)
 	{
 		EmbedBuilder builder = new EmbedBuilder();
 		builder.setColor(0x50b0ff);
@@ -174,6 +174,6 @@ public class CommandUtils
 			String desc = Utils.join(spec.description(), "\n");
 			builder.addField(name, desc, false);
 		}
-		return new MessageBuilder().setEmbed(builder.build());
+		return new MessageBuilder().setEmbed(builder.build()).build();
 	}
 }
