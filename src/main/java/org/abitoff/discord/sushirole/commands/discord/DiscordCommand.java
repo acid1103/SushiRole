@@ -1,27 +1,23 @@
 package org.abitoff.discord.sushirole.commands.discord;
 
 import java.io.File;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
+import java.util.concurrent.ConcurrentHashMap;
 
-import org.abitoff.discord.sushirole.SushiRole;
 import org.abitoff.discord.sushirole.commands.Command;
-import org.abitoff.discord.sushirole.commands.cli.CLICommand;
 import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.exceptions.ParameterException;
 import org.abitoff.discord.sushirole.utils.CommandUtils;
-import org.abitoff.discord.sushirole.utils.Utils;
 
-import net.dv8tion.jda.core.EmbedBuilder;
 import net.dv8tion.jda.core.MessageBuilder;
 import net.dv8tion.jda.core.entities.Message;
+import net.dv8tion.jda.core.events.Event;
 import net.dv8tion.jda.core.events.message.guild.GuildMessageReceivedEvent;
 import picocli.CommandLine;
-import picocli.CommandLine.Model.OptionSpec;
-import picocli.CommandLine.Model.PositionalParamSpec;
-import picocli.CommandLine.Model.UsageMessageSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
@@ -29,11 +25,100 @@ public abstract class DiscordCommand extends Command
 {
 	private static final CommandLine cl = CommandUtils.generateCommands(DiscordCommand.class,
 			ResourceBundle.getBundle("locale.discord", Locale.US));
+	private static final ConcurrentHashMap<String,MessageBuilder> helpMessages = CommandUtils.generateHelpMessages(cl);
 
 	@CommandLine.Command(
-			name = "run",
-			mixinStandardHelpOptions = true,
-			version = SushiRole.VERSION)
+			name = "test")
+	public static final class TestCommand extends DiscordCommand
+	{
+		@Option(
+				names = {"-h", "--help"},
+				usageHelp = true)
+		private boolean helpFlag = false;
+
+		@Parameters(
+				arity = "2",
+				description = "File(s) to process.")
+		private File[] inputFiles;
+
+		@Override
+		public boolean getHelpFlag()
+		{
+			return helpFlag;
+		}
+
+		@Override
+		protected void verifyParameters() throws ParameterException
+		{
+		}
+
+		@Override
+		protected void executeCommand(Event event, Object...args)
+		{
+			try
+			{
+				int tab = 0;
+				Field[] fields = getClass().getDeclaredFields();
+				String[] names = new String[fields.length];
+				String[] values = new String[fields.length];
+				for (int i = 0; i < fields.length; i++)
+				{
+					Field f = fields[i];
+					names[i] = f.getName();
+					if (names[i].length() > tab)
+						tab = names[i].length();
+					Object obj = f.get(this);
+					if (obj.getClass().isArray())
+					{
+						Object[] objAr = new Object[Array.getLength(obj)];
+						for (int j = 0; j < objAr.length; j++)
+							objAr[j] = Array.get(obj, j);
+						values[i] = Arrays.deepToString(objAr);
+					} else
+					{
+						values[i] = obj.toString();
+					}
+				}
+				for (int i = 0; i < names.length; i++)
+				{
+					int nameLength = names[i].length();
+					int toTab = tab - nameLength;
+					String tabStr = "";
+					for (int j = 0; j < toTab; j++)
+						tabStr += " ";
+					System.out.println(names[i] + ": " + tabStr + values[i]);
+				}
+			} catch (Exception e)
+			{
+				e.printStackTrace();
+			}
+		}
+	}
+
+	@CommandLine.Command(
+			name = "help")
+	public static final class HelpCommand extends DiscordCommand
+	{
+		@Override
+		public boolean getHelpFlag()
+		{
+			return false;
+		}
+
+		@Override
+		protected void verifyParameters() throws ParameterException
+		{
+		}
+
+		@Override
+		protected void executeCommand(Event event, Object...args) throws FatalException
+		{
+
+		}
+	}
+
+	@CommandLine.Command(
+			name = "run")
 	public static final class RunCommand extends DiscordCommand
 	{
 		@Option(
@@ -49,30 +134,42 @@ public abstract class DiscordCommand extends Command
 				names = {"-v", "--verbose"})
 		private boolean[] verbosity = new boolean[0];
 
+		@Option(
+				names = {"-h", "--help"},
+				usageHelp = true)
+		private boolean helpFlag = false;
+
+		@Override
+		public boolean getHelpFlag()
+		{
+			return helpFlag;
+		}
+
 		@Override
 		protected void verifyParameters() throws ParameterException
 		{
 		}
 
 		@Override
-		protected void executeCommand() throws FatalException
+		protected void executeCommand(Event event, Object...args) throws FatalException
 		{
-			System.out.println("Dev: " + dev);
-			System.out.println("Shards: " + shards);
-			System.out.println("Verbosity: " + Arrays.toString(verbosity));
-		}
-
-		@Override
-		String since()
-		{
-			return "1.0";
+			if (event instanceof GuildMessageReceivedEvent)
+			{
+				GuildMessageReceivedEvent evnt = (GuildMessageReceivedEvent) event;
+				evnt.getChannel()
+						.sendMessage("Dev: " + dev + "\nShards: " + shards + "\nVerbosity: " + Arrays.toString(verbosity))
+						.queue();
+			} else
+			{
+				System.out.println("Dev: " + dev);
+				System.out.println("Shards: " + shards);
+				System.out.println("Verbosity: " + Arrays.toString(verbosity));
+			}
 		}
 	}
 
 	@CommandLine.Command(
-			name = "decrypt",
-			mixinStandardHelpOptions = true,
-			version = SushiRole.VERSION)
+			name = "decrypt")
 	public static final class DecryptCommand extends DiscordCommand
 	{
 		@Parameters(
@@ -86,7 +183,16 @@ public abstract class DiscordCommand extends Command
 				descriptionKey = "out")
 		private File out;
 
-		boolean overwrite = false;
+		@Option(
+				names = {"-h", "--help"},
+				usageHelp = true)
+		private boolean helpFlag = false;
+
+		@Override
+		public boolean getHelpFlag()
+		{
+			return helpFlag;
+		}
 
 		@Override
 		protected void verifyParameters() throws ParameterException
@@ -95,13 +201,7 @@ public abstract class DiscordCommand extends Command
 		}
 
 		@Override
-		String since()
-		{
-			return null;
-		}
-
-		@Override
-		protected void executeCommand() throws FatalException
+		protected void executeCommand(Event event, Object...args) throws FatalException
 		{
 		}
 	}
@@ -112,29 +212,30 @@ public abstract class DiscordCommand extends Command
 	 * @author Steven Fontaine
 	 */
 	@CommandLine.Command(
-			name = "",
-			mixinStandardHelpOptions = true,
-			version = SushiRole.VERSION)
+			name = "")
 	public static final class DefaultCommand extends DiscordCommand
 	{
+		@Option(
+				names = {"-h", "--help"},
+				usageHelp = true)
+		private boolean helpFlag = false;
+
+		@Override
+		public boolean getHelpFlag()
+		{
+			return helpFlag;
+		}
+
 		@Override
 		protected void verifyParameters() throws ParameterException
 		{
 		}
 
 		@Override
-		protected void executeCommand() throws FatalException
+		protected void executeCommand(Event event, Object...args) throws FatalException
 		{
-		}
-
-		@Override
-		String since()
-		{
-			return "1.0";
 		}
 	}
-
-	abstract String since();
 
 	@Override
 	public Class<DefaultCommand> defaultCommand()
@@ -142,64 +243,38 @@ public abstract class DiscordCommand extends Command
 		return DefaultCommand.class;
 	}
 
+	protected void executeCommand(Object...args) throws FatalException
+	{
+		assert (args != null && args.length > 0 && args[0] instanceof Event);
+		if (args.length > 1)
+		{
+			Object[] argz = new Object[args.length - 1];
+			System.arraycopy(args, 1, argz, 0, argz.length);
+			executeCommand((Event) args[0], argz);
+		} else
+		{
+			executeCommand((Event) args[0]);
+		}
+
+	}
+
+	protected abstract void executeCommand(Event event, Object...args);
+
+	public abstract boolean getHelpFlag();
+
 	/**
 	 * TODO
 	 * 
 	 * @param args
 	 * @return
 	 */
-	public static List<Object> executeCommand(GuildMessageReceivedEvent event, String...args)
+	public static void executeCommand(GuildMessageReceivedEvent event, String...args)
 	{
-		return cl.parseWithHandlers(new DiscordCommandParseHandler(event), new DiscordCommandExceptionHandler(event), args);
+		cl.parseWithHandlers(new DiscordCommandParseHandler(event), new DiscordCommandExceptionHandler(event), args);
 	}
 
-	public static Message generateHelpMessage(DiscordCommand dc, CommandLine command)
+	public static MessageBuilder getHelpMessage(CommandLine command)
 	{
-		if (dc == null || dc instanceof DefaultCommand)
-		{
-			// return generic help message
-		} else
-		{
-			System.out.println(command.getCommandName());
-			EmbedBuilder builder = new EmbedBuilder();
-			builder.setTitle(command.getCommandName());
-			CommandLine.Help help = new CommandLine.Help(command.getCommand());
-			UsageMessageSpec spec = command.getCommandSpec().usageMessage();
-			String description = Utils.join(spec.description(), "\n");
-			System.out.println(description);
-			String synopsis = help.synopsis(0);
-			System.out.println(synopsis);
-			builder.setDescription("__" + description + "__\nUsage: " + synopsis);
-			for (OptionSpec ospec: command.getCommandSpec().options())
-			{
-				String names = Utils.join(ospec.names(), ", ");
-				System.out.println(names);
-				String desc = "\t" + Utils.join(ospec.description(), "\n\t");
-				System.out.println(desc);
-				builder.addField(names, desc, false);
-			}
-			for (PositionalParamSpec pspec: command.getCommandSpec().positionalParameters())
-			{
-				String name = pspec.paramLabel();
-				System.out.println(name);
-				String desc = "\t" + Utils.join(pspec.description(), "\n\t");
-				System.out.println(desc);;
-				builder.addField(name, desc, false);
-			}
-			return new MessageBuilder().setEmbed(builder.build()).build();
-		}
-		return null;
-	}
-
-	public static Message generateVersionMessage(DiscordCommand dc, CommandLine command)
-	{
-		if (dc == null || dc instanceof DefaultCommand)
-		{
-			// return generic version message
-		} else
-		{
-			// return version message including the version the given command was added
-		}
-		return null;
+		return helpMessages.get(command.getCommandName());
 	}
 }

@@ -1,11 +1,7 @@
 package org.abitoff.discord.sushirole.events;
 
-import java.util.List;
-
 import org.abitoff.discord.sushirole.commands.discord.DiscordCommand;
-import org.abitoff.discord.sushirole.exceptions.ExceptionHandler;
 
-import net.dv8tion.jda.core.entities.Message;
 import net.dv8tion.jda.core.events.ReadyEvent;
 import net.dv8tion.jda.core.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.core.events.message.guild.GuildMessageReceivedEvent;
@@ -30,6 +26,7 @@ public class GlobalEventListener extends ListenerAdapter
 		{
 			String[] args = event.getMessage().getContentRaw().split(" ");
 			DiscordCommand.executeCommand(event, args);
+			// event.getJDA().shutdown();
 		}
 	}
 
@@ -40,11 +37,5 @@ public class GlobalEventListener extends ListenerAdapter
 
 	public void onReady(ReadyEvent event)
 	{
-		List<Object> obj = DiscordCommand.executeCommand(null, "decrypt -h".split(" "));
-		if (obj != null && obj.get(0) != null && obj.get(0) instanceof Message)
-		{
-			event.getJDA().getTextChannelById(0L).sendMessage((Message) obj.get(0)).complete();
-		}
-		event.getJDA().shutdown();
 	}
 }

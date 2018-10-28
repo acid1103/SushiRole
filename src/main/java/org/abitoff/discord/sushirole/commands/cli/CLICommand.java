@@ -95,8 +95,10 @@ public abstract class CLICommand extends Command
 			verbosityValue = Integer.min(Integer.max(verbosityValue, 0), 6);
 		}
 
+		JDA devShard = null;
+
 		@Override
-		protected void executeCommand() throws FatalException
+		protected void executeCommand(Object...args) throws FatalException
 		{
 			// TODO
 			Level[] verbosityLevels = new Level[] {Level.OFF, Level.ERROR, Level.WARN, Level.INFO, Level.DEBUG, Level.TRACE,
@@ -136,6 +138,7 @@ public abstract class CLICommand extends Command
 						{
 							ExceptionHandler.initialize(config.pastebin, new File("./sushiroleconfig/error_encryption_key"),
 									errorChannel);
+							devShard = shard;
 						}
 					});
 					exceptionHandlerWaitingFutures.add(future);
@@ -230,7 +233,7 @@ public abstract class CLICommand extends Command
 		}
 
 		@Override
-		protected void executeCommand() throws FatalException
+		protected void executeCommand(Object...args) throws FatalException
 		{
 			// read the file into memory
 			LoggingUtils.infof("Reading file...");
@@ -368,7 +371,7 @@ public abstract class CLICommand extends Command
 		}
 
 		@Override
-		protected void executeCommand() throws FatalException
+		protected void executeCommand(Object...args) throws FatalException
 		{
 			cl.usage(System.out);
 		}

@@ -6,11 +6,18 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.ResourceBundle;
+import java.util.concurrent.ConcurrentHashMap;
 
+import org.abitoff.discord.sushirole.SushiRole;
 import org.abitoff.discord.sushirole.commands.Command;
 import org.abitoff.discord.sushirole.exceptions.FatalException;
 
+import net.dv8tion.jda.core.EmbedBuilder;
+import net.dv8tion.jda.core.MessageBuilder;
+import net.dv8tion.jda.core.entities.Message;
 import picocli.CommandLine;
+import picocli.CommandLine.Model.OptionSpec;
+import picocli.CommandLine.Model.PositionalParamSpec;
 
 /**
  * A utility class for interacting with {@link picocli.CommandLine picocli} commands.
@@ -122,5 +129,51 @@ public class CommandUtils
 		}
 
 		return cl;
+	}
+
+	public static final ConcurrentHashMap<String,MessageBuilder> generateHelpMessages(CommandLine defaultCommand)
+	{
+		// it's very very very important that this is concurrent, because many threads will potentially be accessing this map
+		// simultaneously.
+		ConcurrentHashMap<String,MessageBuilder> messages = new ConcurrentHashMap<String,MessageBuilder>();
+		EmbedBuilder builder = new EmbedBuilder();
+		builder.setColor(0x50b0ff);
+		builder.setTitle("SushiRole");
+		builder.setDescription("The bot dedicated to sophisticated Discord role management and automation. Created, developed, "
+				+ "and maintained by Steven Fontaine (acid#0001) on [github](https://github.com/ABitOff/SushiRole).");
+		for (Entry<String,CommandLine> entry: defaultCommand.getSubcommands().entrySet())
+		{
+			CommandLine command = entry.getValue();
+			String description = Utils.join(command.getCommandSpec().usageMessage().description(), "\n");
+			String synopsis = new CommandLine.Help(command.getCommand()).synopsis(0);
+			builder.addField(entry.getKey(), "__" + description + "__\nUsage: " + synopsis, false);
+			messages.put(command.getCommandName(), generateCommandHelpMessage(command));
+		}
+		builder.setFooter(SushiRole.VERSION, null);
+		messages.put(defaultCommand.getCommandName(), new MessageBuilder().setEmbed(builder.build()));
+		return messages;
+	}
+
+	private static final MessageBuilder generateCommandHelpMessage(CommandLine command)
+	{
+		EmbedBuilder builder = new EmbedBuilder();
+		builder.setColor(0x50b0ff);
+		builder.setTitle(command.getCommandName());
+		String description = Utils.join(command.getCommandSpec().usageMessage().description(), "\n");
+		String synopsis = new CommandLine.Help(command.getCommand()).synopsis(0);
+		builder.setDescription("__" + description + "__\nUsage: " + synopsis);
+		for (OptionSpec spec: command.getCommandSpec().options())
+		{
+			String names = Utils.join(spec.names(), ", ");
+			String desc = Utils.join(spec.description(), "\n");
+			builder.addField(names, desc, false);
+		}
+		for (PositionalParamSpec spec: command.getCommandSpec().positionalParameters())
+		{
+			String name = spec.paramLabel();
+			String desc = Utils.join(spec.description(), "\n");
+			builder.addField(name, desc, false);
+		}
+		return new MessageBuilder().setEmbed(builder.build());
 	}
 }

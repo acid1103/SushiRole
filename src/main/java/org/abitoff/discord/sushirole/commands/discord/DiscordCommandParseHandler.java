@@ -1,6 +1,5 @@
 package org.abitoff.discord.sushirole.commands.discord;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import net.dv8tion.jda.core.entities.Message;
@@ -10,7 +9,7 @@ import picocli.CommandLine.ExecutionException;
 import picocli.CommandLine.IParseResultHandler2;
 import picocli.CommandLine.ParseResult;
 
-class DiscordCommandParseHandler implements IParseResultHandler2<List<Object>>
+class DiscordCommandParseHandler implements IParseResultHandler2<Void>
 {
 	private final GuildMessageReceivedEvent event;
 
@@ -20,7 +19,7 @@ class DiscordCommandParseHandler implements IParseResultHandler2<List<Object>>
 	}
 
 	@Override
-	public List<Object> handleParseResult(ParseResult parseResult) throws ExecutionException
+	public Void handleParseResult(ParseResult parseResult) throws ExecutionException
 	{
 		CommandLine command;
 		{
@@ -29,16 +28,13 @@ class DiscordCommandParseHandler implements IParseResultHandler2<List<Object>>
 		}
 		DiscordCommand dc = (DiscordCommand) command.getCommand();
 
-		if (command.isUsageHelpRequested())
+		if (dc.getHelpFlag())
 		{
-			Message helpMessage = DiscordCommand.generateHelpMessage(dc, command);
-			ArrayList<Object> ret = new ArrayList<Object>();
-			ret.add(helpMessage);
-			return ret;
-		}
-		if (command.isVersionHelpRequested())
+			Message helpMessage = DiscordCommand.getHelpMessage(command).build();
+			event.getChannel().sendMessage(helpMessage).complete();
+		} else
 		{
-			Message versionMessage = DiscordCommand.generateVersionMessage(dc, command);
+			dc.execute(event);
 		}
 		return null;
 	}

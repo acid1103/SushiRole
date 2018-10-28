@@ -30,16 +30,21 @@ public abstract class Command implements Runnable
 	 * 
 	 * @throws FatalException
 	 */
-	protected abstract void executeCommand() throws FatalException;
+	protected abstract void executeCommand(Object...args) throws FatalException;
 
 	@Override
 	public final void run()
+	{
+		execute();
+	}
+
+	public final void execute(Object...args)
 	{
 		LoggingUtils.tracef("Verifying parameters");
 		verifyParameters();
 		LoggingUtils.tracef("Verified");
 		LoggingUtils.tracef("Beginning execution");
-		executeCommand();
+		executeCommand(args);
 		LoggingUtils.tracef("Finished execution");
 	}
 }
