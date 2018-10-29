@@ -25,12 +25,9 @@ public class GlobalEventListener extends ListenerAdapter
 		if (event.getAuthor().getIdLong() != event.getJDA().getSelfUser().getIdLong())
 		{
 			String raw = event.getMessage().getContentRaw();
-			// cleanup repeated spaces and whitespace. 
-			raw = raw.replaceAll("\\s", " ").replaceAll(" +", " ");
-			System.out.println(raw);
-			String[] args = raw.split(" ");
+			// split anywhere there's one or more whitespace character
+			String[] args = raw.split("\\s+");
 			DiscordCommand.executeCommand(event, args);
-			// event.getJDA().shutdown();
 		}
 	}
 

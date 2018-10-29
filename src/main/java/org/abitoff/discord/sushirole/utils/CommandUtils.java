@@ -5,6 +5,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -144,7 +145,7 @@ public class CommandUtils
 		for (Entry<String,CommandLine> entry: defaultCommand.getSubcommands().entrySet())
 		{
 			CommandLine command = entry.getValue();
-			String description = Utils.join(command.getCommandSpec().usageMessage().description(), "\n");
+			String description = Objects.toString(Utils.join(command.getCommandSpec().usageMessage().description(), "\n"), "");
 			String synopsis = new CommandLine.Help(command.getCommand()).synopsis(0);
 			builder.addField(entry.getKey(), "__" + description + "__\nUsage: " + synopsis, false);
 			messages.put(command.getCommandName(), generateCommandHelpMessage(command));
@@ -159,19 +160,19 @@ public class CommandUtils
 		EmbedBuilder builder = new EmbedBuilder();
 		builder.setColor(0x50b0ff);
 		builder.setTitle(command.getCommandName());
-		String description = Utils.join(command.getCommandSpec().usageMessage().description(), "\n");
+		String description = Objects.toString(Utils.join(command.getCommandSpec().usageMessage().description(), "\n"), "");
 		String synopsis = new CommandLine.Help(command.getCommand()).synopsis(0);
 		builder.setDescription("__" + description + "__\nUsage: " + synopsis);
 		for (OptionSpec spec: command.getCommandSpec().options())
 		{
-			String names = Utils.join(spec.names(), ", ");
-			String desc = Utils.join(spec.description(), "\n");
+			String names = Objects.toString(Utils.join(spec.names(), ", "), "");
+			String desc = Objects.toString(Utils.join(spec.description(), "\n"), "");
 			builder.addField(names, desc, false);
 		}
 		for (PositionalParamSpec spec: command.getCommandSpec().positionalParameters())
 		{
 			String name = spec.paramLabel();
-			String desc = Utils.join(spec.description(), "\n");
+			String desc = Objects.toString(Utils.join(spec.description(), "\n"), "");
 			builder.addField(name, desc, false);
 		}
 		return new MessageBuilder().setEmbed(builder.build()).build();

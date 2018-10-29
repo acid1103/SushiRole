@@ -52,12 +52,6 @@ public abstract class DiscordCommand extends Command
 		private File inputFiles2;
 
 		@Override
-		public boolean getHelpFlag()
-		{
-			return helpFlag;
-		}
-
-		@Override
 		protected void verifyParameters() throws ParameterException
 		{
 		}
@@ -113,12 +107,6 @@ public abstract class DiscordCommand extends Command
 	public static final class HelpCommand extends DiscordCommand
 	{
 		@Override
-		public boolean getHelpFlag()
-		{
-			return false;
-		}
-
-		@Override
 		protected void verifyParameters() throws ParameterException
 		{
 		}
@@ -151,12 +139,6 @@ public abstract class DiscordCommand extends Command
 				names = {"-h", "--help"},
 				usageHelp = true)
 		private boolean helpFlag = false;
-
-		@Override
-		public boolean getHelpFlag()
-		{
-			return helpFlag;
-		}
 
 		@Override
 		protected void verifyParameters() throws ParameterException
@@ -202,12 +184,6 @@ public abstract class DiscordCommand extends Command
 		private boolean helpFlag = false;
 
 		@Override
-		public boolean getHelpFlag()
-		{
-			return helpFlag;
-		}
-
-		@Override
 		protected void verifyParameters() throws ParameterException
 		{
 
@@ -232,12 +208,6 @@ public abstract class DiscordCommand extends Command
 				names = {"-h", "--help"},
 				usageHelp = true)
 		private boolean helpFlag = false;
-
-		@Override
-		public boolean getHelpFlag()
-		{
-			return helpFlag;
-		}
 
 		@Override
 		protected void verifyParameters() throws ParameterException
@@ -272,8 +242,6 @@ public abstract class DiscordCommand extends Command
 	}
 
 	protected abstract void executeCommand(Event event, Object...args);
-
-	public abstract boolean getHelpFlag();
 
 	/**
 	 * TODO

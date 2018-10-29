@@ -3,6 +3,7 @@ package org.abitoff.discord.sushirole.commands.discord;
 import java.util.List;
 
 import org.abitoff.discord.sushirole.exceptions.ExceptionHandler;
+import org.abitoff.discord.sushirole.exceptions.MessageHandlingException;
 
 import net.dv8tion.jda.core.MessageBuilder;
 import net.dv8tion.jda.core.entities.Message;
@@ -30,6 +31,7 @@ class DiscordCommandExceptionHandler implements IExceptionHandler2<Void>
 	{
 		Message msg;
 		String content;
+		boolean appendHelp = true;
 		// if (ex instanceof MaxValuesExceededException){/*never used internally in picocli*/} else
 		if (ex instanceof MissingParameterException)
 		{
@@ -58,7 +60,7 @@ class DiscordCommandExceptionHandler implements IExceptionHandler2<Void>
 		else if (ex instanceof OverwrittenOptionException)
 		{
 			// picocli provides no nice way of retrieving the argument which was overwritten, so we have to hard code some of
-			// this...
+			// this... the desired functionality will be added in 3.8. (see https://github.com/remkop/picocli/pull/532)
 			OverwrittenOptionException e = (OverwrittenOptionException) ex;
 			String exmsg = e.getMessage();
 			exmsg = exmsg.substring(8);
@@ -68,23 +70,33 @@ class DiscordCommandExceptionHandler implements IExceptionHandler2<Void>
 		} else if (ex instanceof UnmatchedArgumentException)
 		{
 			UnmatchedArgumentException e = (UnmatchedArgumentException) ex;
-			content = "<:error:410903384586059776> The following argument(s) are unrecognized: ";
-			List<String> unmatched = e.getUnmatched();
-			for (int i = 0; i < unmatched.size(); i++)
+
+			if (e.getCommandLine().getCommand() instanceof DiscordCommand.DefaultCommand)
 			{
-				content += "`" + unmatched.get(i) + "`";
-				if (i != unmatched.size() - 1)
-					content += ", ";
+				content = "<:error:410903384586059776> Unrecognized command: `" + e.getUnmatched().get(0) + "`";
+			} else
+			{
+				content = "<:error:410903384586059776> The following argument(s) are unrecognized: ";
+				List<String> unmatched = e.getUnmatched();
+				for (int i = 0; i < unmatched.size(); i++)
+				{
+					content += "`" + unmatched.get(i) + "`";
+					if (i != unmatched.size() - 1)
+						content += ", ";
+				}
 			}
 		} else
 		{
-			ExceptionHandler.reportThrowable(ex);
-			content = "<:error:410903384586059776> An unexpected error has occured while processing that command.";
+			ExceptionHandler.reportThrowable(new MessageHandlingException(event.getMessage(), ex));
+			content = "<:error:410903384586059776> An unexpected error has occurred while processing that command. The developers "
+					+ "have been notified and are working to resolve the error.";
 		}
 
 		Message help = DiscordCommand.getHelpMessage(ex.getCommandLine());
 		MessageBuilder builder = new MessageBuilder();
-		builder.setContent(content).setEmbed(help.getEmbeds().get(0));
+		builder.setContent(content);
+		if (appendHelp)
+			builder.setEmbed(help.getEmbeds().get(0));
 		msg = builder.build();
 		event.getChannel().sendMessage(msg).queue();
 		return null;
@@ -93,7 +105,9 @@ class DiscordCommandExceptionHandler implements IExceptionHandler2<Void>
 	@Override
 	public Void handleExecutionException(ExecutionException ex, ParseResult parseResult)
 	{
-		ex.printStackTrace();
+		ExceptionHandler.reportThrowable(new MessageHandlingException(event.getMessage(), ex));
+		event.getChannel().sendMessage("<:error:410903384586059776> An unexpected error has occurred while executing that "
+				+ "command. The developers have been notified and are working to resolve the error.").queue();
 		return null;
 	}
 }
