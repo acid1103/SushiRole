@@ -1,6 +1,7 @@
 package org.abitoff.discord.sushirole.exceptions;
 
 import java.security.GeneralSecurityException;
+import java.util.EnumSet;
 
 import org.abitoff.discord.sushirole.exceptions.ThrowableReporter.ThrowableReportingException.ExceptionType;
 import org.abitoff.discord.sushirole.pastebin.ConcurrentPastebinApi;
@@ -18,7 +19,7 @@ import net.dv8tion.jda.core.entities.TextChannel;
 
 public class ThrowableReporter
 {
-	private final LockManager lockManager = new LockManager("log", "reportingChannel", "pastebin", "encryptor", "alwaysLog");
+	private final LockManager<Locks> lockManager = new LockManager<Locks>(EnumSet.allOf(Locks.class));
 	volatile Logger log;
 	volatile TextChannel reportingChannel;
 	volatile PasteBin pastebin;
@@ -32,7 +33,7 @@ public class ThrowableReporter
 
 	public void setLogger(Logger log)
 	{
-		lockManager.synchronize(() -> this.log = log, "log");
+		lockManager.synchronize(() -> this.log = log, Locks.LOG);
 	}
 
 	private void _setReportingDiscordChannel(TextChannel channel) throws ThrowableReportingException
@@ -45,12 +46,12 @@ public class ThrowableReporter
 
 	public void setReportingDiscordChannel(TextChannel channel) throws ThrowableReportingException
 	{
-		lockManager.synchronize(() -> _setReportingDiscordChannel(channel), "reportingChannel");
+		lockManager.synchronize(() -> _setReportingDiscordChannel(channel), Locks.REPORTING_CHANNEL);
 	}
 
 	public void setPastebinAccountCredentials(AccountCredentials credentials) throws ThrowableReportingException
 	{
-		lockManager.synchronize(() -> pastebin = new PasteBin(credentials, ConcurrentPastebinApi.API), "pastebin");
+		lockManager.synchronize(() -> pastebin = new PasteBin(credentials, ConcurrentPastebinApi.API), Locks.PASTEBIN);
 	}
 
 	void setPastebinEncryptionKey(KeysetHandle AEADEncryptionKey) throws ThrowableReportingException
@@ -67,11 +68,20 @@ public class ThrowableReporter
 				{
 					throw new ThrowableReportingException(e, ExceptionType.ENCRYPTION);
 				}
-			}, "encryptor");
+			}, Locks.ENCRYPTOR);
 		} catch (GeneralSecurityException e)
 		{
 			throw new ThrowableReportingException(e, ExceptionType.ENCRYPTION);
 		}
+	}
+
+	private static enum Locks
+	{
+		LOG,
+		REPORTING_CHANNEL,
+		PASTEBIN,
+		ENCRYPTOR,
+		ALWAYS_LOG
 	}
 
 	public static class ThrowableReportingException extends RuntimeException

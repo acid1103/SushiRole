@@ -1,107 +1,110 @@
 package org.abitoff.discord.sushirole.utils;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
 /**
- * An object which contains {@link ReentrantLock locks} with associated names. Used for managing a large set of locks for more
- * complex concurrent operations.
+ * An object which contains a set of {@link ReentrantLock locks} keyed by a set of {@link Enum enums}. Used for managing a large
+ * set of locks for more complex concurrent operations.<br />
+ * Note: In this documentation, the words {@code lock} and {@code key} are used frequently. Unless otherwise stated, {@code lock}
+ * is referring to a {@link java.util.concurrent.locks.Lock lock} in the concurrent sense, and {@code key} is referring to a
+ * {@link java.util.Map key} in the Map data type sense.
  * 
  * @author Steven Fontaine
  */
-public class LockManager
+public class LockManager<T extends Enum<T>>
 {
-	/** Map of locks by name */
-	private final Map<String,ReentrantLock> locks = new ConcurrentHashMap<String,ReentrantLock>();
+	/** Map of locks keyed by {@code Enum<T>} */
+	private final Map<T,ReentrantLock> locks = new ConcurrentHashMap<T,ReentrantLock>();
 
 	/**
-	 * Creates an empty LockManager
+	 * Creates an empty LockManager of type {@code T}
 	 */
-	public LockManager()
+	public LockManager(Class<T> clazz)
 	{
 	}
 
 	/**
-	 * Creates a LockManager and populates it with new locks with the given list of names
+	 * Creates a LockManager and populates it with new locks with the given list of keys
 	 */
-	public LockManager(String...names)
+	public LockManager(EnumSet<T> enms)
 	{
-		if (names != null && names.length > 0)
-			for (String name: names)
-				addLock(name);
+		enms.forEach(enm -> locks.put(enm, new ReentrantLock()));
 	}
 
 	/**
-	 * Adds and returns a lock with the given name to this manager, or returns the lock with the given name if one already
-	 * exists.<br />
-	 * <strong>{@code lockName} must not be {@code null}!</strong>
+	 * Adds and returns a lock with the given key to this manager, or returns the lock with the given key if one already exists.
 	 * 
-	 * @param lockName
-	 *            the name associated with the lock
-	 * @return the lock associated with the given name.
+	 * @param enm
+	 *            the key associated with the lock
+	 * @return the lock associated with the given key.
 	 */
-	public ReentrantLock addLock(String lockName)
+	public ReentrantLock addLock(T enm)
 	{
-		Objects.requireNonNull(lockName, "lockName must not be null!");
-		return locks.putIfAbsent(lockName, new ReentrantLock(true));
+		ReentrantLock lock = locks.get(enm);
+		// check rather than locks.putIfAbsent to prevent instantiating a new ReentrantLock if not necessary
+		if (lock == null)
+			lock = locks.put(enm, new ReentrantLock());
+		return lock;
 	}
 
 	/**
-	 * Retrieves the lock with the given name from this manager.
+	 * Retrieves the lock with the given key from this manager.
 	 * 
-	 * @param lockName
+	 * @param enm
 	 *            the lock to retrieve
 	 * @return the retrieved lock
 	 */
-	public ReentrantLock getLock(String lockName)
+	public ReentrantLock getLock(T enm)
 	{
-		return locks.get(lockName);
+		return locks.get(enm);
 	}
 
 	/**
-	 * Checks if this manager currently holds a lock with the given name.
+	 * Checks if this manager currently holds a lock with the given key.
 	 * 
-	 * @param lockName
-	 *            the name of the lock to check for
-	 * @return true if there is a lock in the manager with the associated name, false otherwise
+	 * @param enm
+	 *            the key of the lock to check for
+	 * @return true if there is a lock in the manager with the associated key, false otherwise
 	 */
-	public boolean lockExists(String lockName)
+	public boolean lockExists(T enm)
 	{
-		return locks.containsKey(lockName);
+		return locks.containsKey(enm);
 	}
 
 	/**
-	 * If this manager contains {@code lock}, returns the name associated with it. Otherwise, returns {@code null}.
+	 * If this manager contains {@code lock}, returns the key associated with it. Otherwise, returns {@code null}.
 	 * 
 	 * @param lock
 	 *            the lock whose name to retrieve
-	 * @return {@code lock}'s name
+	 * @return {@code lock}'s key
 	 */
-	public String getName(ReentrantLock lock)
+	public T getKey(ReentrantLock lock)
 	{
-		for (Entry<String,ReentrantLock> entry: locks.entrySet())
+		for (Entry<T,ReentrantLock> entry: locks.entrySet())
 			if (entry.getValue() == lock)
 				return entry.getKey();
 		return null;
 	}
 
 	/**
-	 * Performs {@code supplier} under lock of {@code lockName}
+	 * Performs {@code supplier} under lock of {@code enm}
 	 * 
 	 * @return the result of {@code supplier}
 	 */
-	public <T> T synchronize(Supplier<T> supplier, String lockName)
+	public <U> U synchronize(Supplier<U> supplier, T enm)
 	{
-		ReentrantLock lock = getLock(lockName);
-		Objects.requireNonNull(lock, lockName + " is not a lock managed by this LockManager!");
+		ReentrantLock lock = getLock(enm);
+		Objects.requireNonNull(lock, enm + " is not a lock managed by this LockManager!");
 		lock.lock();
-		T ret;
+		U ret;
 		try
 		{
 			ret = supplier.get();
@@ -113,32 +116,32 @@ public class LockManager
 	}
 
 	/**
-	 * Runs {@code runnable} under lock of {@code lockName}
+	 * Runs {@code runnable} under lock of {@code enm}
 	 */
-	public void synchronize(Runnable runnable, String name)
+	public void synchronize(Runnable runnable, T enm)
 	{
 		synchronize(() ->
 		{
 			runnable.run();
 			return null;
-		}, name);
+		}, enm);
 	}
 
 	/**
-	 * Perform {@code supplier} under lock of all locks with the given names.
+	 * Perform {@code supplier} under lock of all locks with the given keys.
 	 * 
 	 * @return the result of {@code supplier}
 	 */
-	public <T> T synchronize(Supplier<T> supplier, String...names)
+	public <U> U synchronize(Supplier<U> supplier, EnumSet<T> enms)
 	{
-		List<ReentrantLock> locks = new ArrayList<ReentrantLock>(names.length);
-		T ret;
+		List<ReentrantLock> locks = new ArrayList<ReentrantLock>(enms.size());
+		U ret;
 
 		try
 		{
 			// attempt to do a single pass rather than one verification pass and one locking pass to improve performance. we have
 			// to be careful to unlock any locks which were successfully locked, however.
-			for (String name: names)
+			for (T name: enms)
 			{
 				ReentrantLock lock = getLock(name);
 				Objects.requireNonNull(lock, name + " is not a lock managed by this LockManager!");
@@ -170,14 +173,14 @@ public class LockManager
 	}
 
 	/**
-	 * Runs {@code runnable} under lock of all locks with the given names.
+	 * Runs {@code runnable} under lock of all locks with the given keys.
 	 */
-	public void synchronize(Runnable runnable, String...names)
+	public void synchronize(Runnable runnable, EnumSet<T> enms)
 	{
 		synchronize(() ->
 		{
 			runnable.run();
 			return null;
-		}, names);
+		}, enms);
 	}
 }
