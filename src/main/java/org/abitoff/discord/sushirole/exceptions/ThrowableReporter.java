@@ -20,59 +20,51 @@ import net.dv8tion.jda.core.entities.TextChannel;
 public class ThrowableReporter
 {
 	private final LockManager<Locks> lockManager = new LockManager<Locks>(EnumSet.allOf(Locks.class));
-	volatile Logger log;
-	volatile TextChannel reportingChannel;
-	volatile PasteBin pastebin;
-	volatile Aead encryptor;
-	volatile boolean alwaysLog;
+	private final Logger log;
+	private final TextChannel reportingChannel;
+	private final PasteBin pastebin;
+	private final Aead encryptor;
 
-	public ThrowableReporter()
+	public ThrowableReporter(Logger fileLogger, TextChannel devGuildReportingChannel, AccountCredentials pastebinCredentials,
+			KeysetHandle AEADEncryptionKey)
 	{
-
-	}
-
-	public void setLogger(Logger log)
-	{
-		lockManager.synchronize(() -> this.log = log, Locks.LOG);
-	}
-
-	private void _setReportingDiscordChannel(TextChannel channel) throws ThrowableReportingException
-	{
-		reportingChannel = channel;
-		if (!channel.canTalk())
-			throw new ThrowableReportingException("Bot must be able to talk in the error reporting channel to send reports!",
-					ExceptionType.DISCORD);
-	}
-
-	public void setReportingDiscordChannel(TextChannel channel) throws ThrowableReportingException
-	{
-		lockManager.synchronize(() -> _setReportingDiscordChannel(channel), Locks.REPORTING_CHANNEL);
-	}
-
-	public void setPastebinAccountCredentials(AccountCredentials credentials) throws ThrowableReportingException
-	{
-		lockManager.synchronize(() -> pastebin = new PasteBin(credentials, ConcurrentPastebinApi.API), Locks.PASTEBIN);
-	}
-
-	void setPastebinEncryptionKey(KeysetHandle AEADEncryptionKey) throws ThrowableReportingException
-	{
+		EnumSet<Locks> locks = EnumSet.allOf(Locks.class);
+		lockManager.lockAll(locks);
 		try
 		{
-			AeadConfig.register();
-			lockManager.synchronize(() ->
+			this.log = fileLogger;
+			this.reportingChannel = devGuildReportingChannel;
+			if (pastebinCredentials != null)
+				this.pastebin = new PasteBin(pastebinCredentials, ConcurrentPastebinApi.API);
+			else
+				this.pastebin = null;
+			if (AEADEncryptionKey != null)
 			{
 				try
 				{
-					encryptor = AeadFactory.getPrimitive(AEADEncryptionKey);
+					AeadConfig.register();
+					this.encryptor = AeadFactory.getPrimitive(AEADEncryptionKey);
 				} catch (GeneralSecurityException e)
 				{
-					throw new ThrowableReportingException(e, ExceptionType.ENCRYPTION);
+					throw new ThrowableReportingException("Exception while initiating Tink's AEAD service!", e,
+							ExceptionType.ENCRYPTION);
 				}
-			}, Locks.ENCRYPTOR);
-		} catch (GeneralSecurityException e)
+			} else
+				this.encryptor = null;
+		} finally
 		{
-			throw new ThrowableReportingException(e, ExceptionType.ENCRYPTION);
+			lockManager.unlockAll(locks);
 		}
+	}
+
+	public Logger getLogger()
+	{
+		return log;
+	}
+
+	public TextChannel getReportingDiscordChannel()
+	{
+		return reportingChannel;
 	}
 
 	private static enum Locks
@@ -81,7 +73,11 @@ public class ThrowableReporter
 		REPORTING_CHANNEL,
 		PASTEBIN,
 		ENCRYPTOR,
-		ALWAYS_LOG
+	}
+
+	public static class ThrowablePacket
+	{
+		Throwable t;
 	}
 
 	public static class ThrowableReportingException extends RuntimeException
@@ -125,7 +121,7 @@ public class ThrowableReporter
 			LOGGING,
 			ENCRYPTION,
 			PASTEBIN,
-			DISCORD
+			DISCORD,
 		}
 	}
 }

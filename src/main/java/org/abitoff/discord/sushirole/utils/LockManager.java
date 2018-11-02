@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
+import javax.annotation.Nonnull;
+
 /**
  * An object which contains a set of {@link ReentrantLock locks} keyed by a set of {@link Enum enums}. Used for managing a large
  * set of locks for more complex concurrent operations.<br />
@@ -27,67 +29,80 @@ public class LockManager<T extends Enum<T>>
 	/**
 	 * Creates an empty LockManager of type {@code T}
 	 */
-	public LockManager(Class<T> clazz)
+	public LockManager(@Nonnull Class<T> clazz)
 	{
+		Objects.requireNonNull(clazz, "clazz must not be null!");
 	}
 
 	/**
 	 * Creates a LockManager and populates it with new locks with the given list of keys
 	 */
-	public LockManager(EnumSet<T> enms)
+	public LockManager(@Nonnull EnumSet<T> keys)
 	{
-		enms.forEach(enm -> locks.put(enm, new ReentrantLock()));
+		Objects.requireNonNull(keys, "The EnumSet must not be null!");
+		keys.forEach(key -> locks.put(key, new ReentrantLock()));
 	}
 
 	/**
 	 * Adds and returns a lock with the given key to this manager, or returns the lock with the given key if one already exists.
 	 * 
-	 * @param enm
+	 * @param key
 	 *            the key associated with the lock
 	 * @return the lock associated with the given key.
 	 */
-	public ReentrantLock addLock(T enm)
+	public ReentrantLock addLock(@Nonnull T key)
 	{
-		ReentrantLock lock = locks.get(enm);
+		Objects.requireNonNull(key, "LockManager does not accept null keys!");
+
+		ReentrantLock lock = locks.get(key);
 		// check rather than locks.putIfAbsent to prevent instantiating a new ReentrantLock if not necessary
 		if (lock == null)
-			lock = locks.put(enm, new ReentrantLock());
+			lock = locks.put(key, new ReentrantLock());
 		return lock;
 	}
 
 	/**
 	 * Retrieves the lock with the given key from this manager.
 	 * 
-	 * @param enm
+	 * @param key
 	 *            the lock to retrieve
 	 * @return the retrieved lock
 	 */
-	public ReentrantLock getLock(T enm)
+	public ReentrantLock getLock(T key)
 	{
-		return locks.get(enm);
+		if (key == null)
+			return null;
+
+		return locks.get(key);
 	}
 
 	/**
 	 * Checks if this manager currently holds a lock with the given key.
 	 * 
-	 * @param enm
+	 * @param key
 	 *            the key of the lock to check for
 	 * @return true if there is a lock in the manager with the associated key, false otherwise
 	 */
-	public boolean lockExists(T enm)
+	public boolean lockExists(T key)
 	{
-		return locks.containsKey(enm);
+		if (key == null)
+			return false;
+
+		return locks.containsKey(key);
 	}
 
 	/**
 	 * If this manager contains {@code lock}, returns the key associated with it. Otherwise, returns {@code null}.
 	 * 
 	 * @param lock
-	 *            the lock whose name to retrieve
+	 *            the lock whose key to retrieve
 	 * @return {@code lock}'s key
 	 */
 	public T getKey(ReentrantLock lock)
 	{
+		if (lock == null)
+			return null;
+
 		for (Entry<T,ReentrantLock> entry: locks.entrySet())
 			if (entry.getValue() == lock)
 				return entry.getKey();
@@ -95,15 +110,93 @@ public class LockManager<T extends Enum<T>>
 	}
 
 	/**
-	 * Performs {@code supplier} under lock of {@code enm}
+	 * TODO
+	 * 
+	 * @param keys
+	 */
+	public void lockAll(@Nonnull EnumSet<T> keys)
+	{
+		Objects.requireNonNull(keys, "The EnumSet must not be null!");
+
+		// we verify the list first, so that we don't have to waste time unlocking any locks that we locked prior to reaching an
+		// invalid key.
+		List<ReentrantLock> locks = new ArrayList<ReentrantLock>(keys.size());
+		for (T key: keys)
+		{
+			ReentrantLock lock = requireNonNullKey(key);
+			locks.add(lock);
+		}
+
+		try
+		{
+			for (ReentrantLock lock: locks)
+				lock.lock();
+		} catch (Throwable t)
+		{
+			// should never happen, but just in case it does and is somehow handled along the way, we need to unlock these.
+			// we catch anything that might happen here and suppress it with our original Throwable to ensure that everything gets
+			// thrown.
+			Throwable suppressed = null;
+			try
+			{
+				unlockAll(keys);
+			} catch (Throwable t2)
+			{
+				suppressed = t2;
+			}
+
+			if (suppressed != null)
+				t.addSuppressed(suppressed);
+
+			throw t;
+		}
+	}
+
+	/**
+	 * TODO
+	 * 
+	 * @param keys
+	 */
+	public void unlockAll(@Nonnull EnumSet<T> keys)
+	{
+		Objects.requireNonNull(keys, "The EnumSet must not be null!");
+
+		// we're very aggressive with unlocking because we don't want to block other threads indefinitely because of a simple
+		// uncaught exception
+		Throwable suppressed = null;
+		for (T key: keys)
+		{
+			try
+			{
+				ReentrantLock lock = requireNonNullKey(key);
+				lock.unlock();
+			} catch (Throwable t)
+			{
+				if (suppressed != null)
+					t.addSuppressed(suppressed);
+				suppressed = t;
+			}
+		}
+
+		if (suppressed != null)
+			throwSuppressedThrowable(suppressed);
+	}
+
+	/**
+	 * Performs {@code supplier} under lock of {@code key}
 	 * 
 	 * @return the result of {@code supplier}
 	 */
-	public <U> U synchronize(Supplier<U> supplier, T enm)
+	public <U> U synchronize(@Nonnull Supplier<U> supplier, T key)
 	{
-		ReentrantLock lock = getLock(enm);
-		Objects.requireNonNull(lock, enm + " is not a lock managed by this LockManager!");
+		Objects.requireNonNull(supplier, "The Supplier must not be null!");
+
+		if (key == null)
+			return supplier.get();
+
+		ReentrantLock lock = requireNonNullKey(key);
 		lock.lock();
+
 		U ret;
 		try
 		{
@@ -116,15 +209,20 @@ public class LockManager<T extends Enum<T>>
 	}
 
 	/**
-	 * Runs {@code runnable} under lock of {@code enm}
+	 * Runs {@code runnable} under lock of {@code key}
 	 */
-	public void synchronize(Runnable runnable, T enm)
+	public void synchronize(@Nonnull Runnable runnable, T key)
 	{
-		synchronize(() ->
-		{
+		Objects.requireNonNull(runnable, "The Runnable must not be null!");
+
+		if (key == null)
 			runnable.run();
-			return null;
-		}, enm);
+		else
+			synchronize(() ->
+			{
+				runnable.run();
+				return null;
+			}, key);
 	}
 
 	/**
@@ -132,41 +230,36 @@ public class LockManager<T extends Enum<T>>
 	 * 
 	 * @return the result of {@code supplier}
 	 */
-	public <U> U synchronize(Supplier<U> supplier, EnumSet<T> enms)
+	public <U> U synchronize(@Nonnull Supplier<U> supplier, EnumSet<T> keys)
 	{
-		List<ReentrantLock> locks = new ArrayList<ReentrantLock>(enms.size());
-		U ret;
+		Objects.requireNonNull(supplier, "The Supplier must not be null!");
 
+		if (keys == null || keys.size() == 0)
+			return supplier.get();
+
+		U ret = null;
+		Throwable suppressed = null;
 		try
 		{
-			// attempt to do a single pass rather than one verification pass and one locking pass to improve performance. we have
-			// to be careful to unlock any locks which were successfully locked, however.
-			for (T name: enms)
-			{
-				ReentrantLock lock = getLock(name);
-				Objects.requireNonNull(lock, name + " is not a lock managed by this LockManager!");
-				// add before locking, so that if an error occurs while locking, an unlock is attempted rather than leaving the
-				// lock in an unknown state. (I have no evidence this is possible, so some testing might be useful here.)
-				locks.add(lock);
-				lock.lock();
-			}
-
+			lockAll(keys);
 			ret = supplier.get();
+		} catch (Throwable t)
+		{
+			suppressed = t;
 		} finally
 		{
-			// finally unlock the locks which were successfully locked.
-			for (ReentrantLock lock: locks)
+			try
 			{
-				try
-				{
-					lock.unlock();
-				} catch (IllegalMonitorStateException e)
-				{
-					// this will happen if a lock in the list isn't held by this thread. this might be caused by adding locks to
-					// the list before successfully locking them. regardless, it doesn't matter if we don't hold the lock, as
-					// we're attempting to release all the locks anyway, so we just ignore it.
-				}
+				unlockAll(keys);
+			} catch (Throwable t)
+			{
+				if (suppressed != null)
+					t.addSuppressed(suppressed);
+				throw t;
 			}
+
+			if (suppressed != null)
+				throwSuppressedThrowable(suppressed);
 		}
 
 		return ret;
@@ -175,12 +268,44 @@ public class LockManager<T extends Enum<T>>
 	/**
 	 * Runs {@code runnable} under lock of all locks with the given keys.
 	 */
-	public void synchronize(Runnable runnable, EnumSet<T> enms)
+	public void synchronize(@Nonnull Runnable runnable, EnumSet<T> keys)
 	{
-		synchronize(() ->
-		{
+		Objects.requireNonNull(runnable, "The Runnable must not be null!");
+
+		if (keys == null || keys.size() == 0)
 			runnable.run();
-			return null;
-		}, enms);
+		else
+			synchronize(() ->
+			{
+				runnable.run();
+				return null;
+			}, keys);
+	}
+
+	/**
+	 * TODO
+	 * 
+	 * @param key
+	 * @return
+	 */
+	private ReentrantLock requireNonNullKey(T key)
+	{
+		ReentrantLock lock = this.locks.get(key);
+		return Objects.requireNonNull(lock, "Lock with the key \"" + key.name() + "\" is not managed by this LockManager!");
+	}
+
+	/**
+	 * TODO
+	 * 
+	 * @param suppressed
+	 */
+	private void throwSuppressedThrowable(Throwable suppressed)
+	{
+		if (suppressed instanceof RuntimeException)
+			throw (RuntimeException) suppressed;
+		else if (suppressed instanceof Error)
+			throw (Error) suppressed;
+		else
+			throw new RuntimeException(suppressed);
 	}
 }
