@@ -23,9 +23,9 @@ import org.abitoff.discord.sushirole.config.SushiRoleConfig;
 import org.abitoff.discord.sushirole.config.SushiRoleConfig.BotConfig;
 import org.abitoff.discord.sushirole.events.GlobalEventListener;
 import org.abitoff.discord.sushirole.exceptions.ExceptionHandler;
-import org.abitoff.discord.sushirole.exceptions.ExceptionHandler.HeaderFlag;
 import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.exceptions.ParameterException;
+import org.abitoff.discord.sushirole.exceptions.ThrowableReporter.ErrorFileUtils;
 import org.abitoff.discord.sushirole.utils.CommandUtils;
 import org.abitoff.discord.sushirole.utils.LoggingUtils;
 
@@ -252,7 +252,7 @@ public abstract class CLICommand extends Command
 			try
 			{
 				String[] parts = new String(file, StandardCharsets.UTF_8)
-						.split(new String(ExceptionHandler.headerSeparator, StandardCharsets.UTF_8));
+						.split(new String(ErrorFileUtils.HEADER_SEPARATOR, StandardCharsets.UTF_8));
 				header_enc = parts[0].getBytes(StandardCharsets.UTF_8);
 				data_enc = parts[1].getBytes(StandardCharsets.UTF_8);
 			} catch (Exception e)
@@ -263,10 +263,10 @@ public abstract class CLICommand extends Command
 
 			// read the header flags from the file
 			LoggingUtils.infof("Reading file header...");
-			EnumSet<HeaderFlag> headerFlags;
+			EnumSet<ErrorFileUtils.HeaderFlag> headerFlags;
 			try
 			{
-				headerFlags = HeaderFlag.generateFlags(header_enc);
+				headerFlags = ErrorFileUtils.generateFlags(header_enc);
 			} catch (IllegalArgumentException e)
 			{
 				throw new FatalException("Error while decoding the header. Ensure the file hasn't been tampered with.");
@@ -285,7 +285,7 @@ public abstract class CLICommand extends Command
 			}
 
 			String plaintext;
-			if (headerFlags.contains(HeaderFlag.ENCRYPTED))
+			if (headerFlags.contains(ErrorFileUtils.HeaderFlag.ENCRYPTED))
 			{
 				// initiate google tink's AEAD services
 				LoggingUtils.infof("Starting decryption service...");
