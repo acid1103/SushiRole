@@ -1,11 +1,9 @@
 package org.abitoff.discord.sushirole.exceptions;
 
 import java.security.GeneralSecurityException;
-import java.util.EnumSet;
 
 import org.abitoff.discord.sushirole.exceptions.ThrowableReporter.ThrowableReportingException.ExceptionType;
 import org.abitoff.discord.sushirole.pastebin.ConcurrentPastebinApi;
-import org.abitoff.discord.sushirole.utils.LockManager;
 
 import com.github.kennedyoliveira.pastebin4j.AccountCredentials;
 import com.github.kennedyoliveira.pastebin4j.PasteBin;
@@ -19,7 +17,7 @@ import net.dv8tion.jda.core.entities.TextChannel;
 
 public class ThrowableReporter
 {
-	private final LockManager<Locks> lockManager = new LockManager<Locks>(EnumSet.allOf(Locks.class));
+	// private final LockManager<Locks> lockManager = new LockManager<Locks>(EnumSet.allOf(Locks.class));
 	private final Logger log;
 	private final TextChannel reportingChannel;
 	private final PasteBin pastebin;
@@ -28,32 +26,26 @@ public class ThrowableReporter
 	public ThrowableReporter(Logger fileLogger, TextChannel devGuildReportingChannel, AccountCredentials pastebinCredentials,
 			KeysetHandle AEADEncryptionKey)
 	{
-		EnumSet<Locks> locks = EnumSet.allOf(Locks.class);
-		lockManager.lockAll(locks);
-		try
+		this.log = fileLogger;
+		this.reportingChannel = devGuildReportingChannel;
+		if (pastebinCredentials != null)
+			this.pastebin = new PasteBin(pastebinCredentials, ConcurrentPastebinApi.API);
+		else
+			this.pastebin = null;
+		if (AEADEncryptionKey != null)
 		{
-			this.log = fileLogger;
-			this.reportingChannel = devGuildReportingChannel;
-			if (pastebinCredentials != null)
-				this.pastebin = new PasteBin(pastebinCredentials, ConcurrentPastebinApi.API);
-			else
-				this.pastebin = null;
-			if (AEADEncryptionKey != null)
+			try
 			{
-				try
-				{
-					AeadConfig.register();
-					this.encryptor = AeadFactory.getPrimitive(AEADEncryptionKey);
-				} catch (GeneralSecurityException e)
-				{
-					throw new ThrowableReportingException("Exception while initiating Tink's AEAD service!", e,
-							ExceptionType.ENCRYPTION);
-				}
-			} else
-				this.encryptor = null;
-		} finally
+				AeadConfig.register();
+				this.encryptor = AeadFactory.getPrimitive(AEADEncryptionKey);
+			} catch (GeneralSecurityException e)
+			{
+				throw new ThrowableReportingException("Exception while initiating Tink's AEAD service!", e,
+						ExceptionType.ENCRYPTION);
+			}
+		} else
 		{
-			lockManager.unlockAll(locks);
+			this.encryptor = null;
 		}
 	}
 
@@ -67,13 +59,9 @@ public class ThrowableReporter
 		return reportingChannel;
 	}
 
-	private static enum Locks
-	{
-		LOG,
-		REPORTING_CHANNEL,
-		PASTEBIN,
-		ENCRYPTOR,
-	}
+	/*
+	 * private static enum Locks { LOG, REPORTING_CHANNEL, PASTEBIN, ENCRYPTOR, }
+	 */
 
 	public static class ThrowablePacket
 	{

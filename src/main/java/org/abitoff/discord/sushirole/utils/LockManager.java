@@ -13,11 +13,18 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 
 /**
- * An object which contains a set of {@link ReentrantLock locks} keyed by a set of {@link Enum enums}. Used for managing a large
- * set of locks for more complex concurrent operations.<br />
+ * <p>
+ * A class which contains a map of {@link ReentrantLock locks} <a href="#lockAndKey">keyed</a> by a set of {@link Enum enums}.
+ * Used for managing a large set of locks for more complex concurrent operations.
+ * </p>
+ * <p id="lockAndKey">
  * Note: In this documentation, the words {@code lock} and {@code key} are used frequently. Unless otherwise stated, {@code lock}
  * is referring to a {@link java.util.concurrent.locks.Lock lock} in the concurrent sense, and {@code key} is referring to a
- * {@link java.util.Map key} in the Map data type sense.
+ * {@link java.util.Map key} in the map data type sense.
+ * </p>
+ *
+ * @param <T>
+ *            the Enum class used to key the map of locks
  * 
  * @author Steven Fontaine
  */
@@ -31,7 +38,7 @@ public class LockManager<T extends Enum<T>>
 	 */
 	public LockManager(@Nonnull Class<T> clazz)
 	{
-		Objects.requireNonNull(clazz, "clazz must not be null!");
+		Objects.requireNonNull(clazz, "The Class must not be null!");
 	}
 
 	/**
@@ -123,7 +130,9 @@ public class LockManager<T extends Enum<T>>
 		List<ReentrantLock> locks = new ArrayList<ReentrantLock>(keys.size());
 		for (T key: keys)
 		{
-			ReentrantLock lock = requireNonNullKey(key);
+			if (key == null)
+				continue;// ignore null keys. subject to change
+			ReentrantLock lock = requireMappedKey(key);
 			locks.add(lock);
 		}
 
@@ -133,59 +142,71 @@ public class LockManager<T extends Enum<T>>
 				lock.lock();
 		} catch (Throwable t)
 		{
-			// should never happen, but just in case it does and is somehow handled along the way, we need to unlock these.
+			// should never happen, but just in case it does, we need to unlock these.
 			// we catch anything that might happen here and suppress it with our original Throwable to ensure that everything gets
 			// thrown.
-			Throwable suppressed = null;
 			try
 			{
 				unlockAll(keys);
-			} catch (Throwable t2)
+			} catch (UnlockException t2)
 			{
-				suppressed = t2;
+				// catch any throwable thrown while unlocking the keys and set it as being suppressed by t.
+				t.addSuppressed(t2);
 			}
-
-			if (suppressed != null)
-				t.addSuppressed(suppressed);
 
 			throw t;
 		}
 	}
 
 	/**
-	 * TODO
+	 * TODO<br />
+	 * NOTE: In the event that multiple exceptions are encountered during execution, all exceptions are suppressed by an
+	 * {@link UnlockException}. It's the job of the caller to handle <strong>every</strong> exception found in
+	 * {@link UnlockException#getSuppressed()}.
 	 * 
 	 * @param keys
 	 */
-	public void unlockAll(@Nonnull EnumSet<T> keys)
+	public void unlockAll(@Nonnull EnumSet<T> keys) throws UnlockException
 	{
 		Objects.requireNonNull(keys, "The EnumSet must not be null!");
 
 		// we're very aggressive with unlocking because we don't want to block other threads indefinitely because of a simple
 		// uncaught exception
-		Throwable suppressed = null;
+		UnlockException suppressed = new UnlockException(
+				"Exceptions encountered and suppressed while unlocking the following keys: " + keys.toString());
 		for (T key: keys)
 		{
 			try
 			{
-				ReentrantLock lock = requireNonNullKey(key);
+				if (key == null)
+					continue;// ignore null keys. subject to change
+				ReentrantLock lock = requireMappedKey(key);
 				lock.unlock();
 			} catch (Throwable t)
 			{
-				if (suppressed != null)
-					t.addSuppressed(suppressed);
-				suppressed = t;
+				/*
+				 * if key is null or key doesn't map to a lock or lock.unlock() throws an IllegalMonitorStateException, we
+				 * absolutely must catch these and continue unlocking, but we should attempt to unlock all locks, even in the case
+				 * of catastrophic failure such as an Error being thrown. we throw these eventually in the by way of
+				 * "UnlockException suppressed", so each throwable gets propagated out in the form of suppressed throwables inside
+				 * an UnlockException. If failure is so catastrophic that the code in this catch block fails to execute, the
+				 * application is bound to crash, so no special care is taken to handle such a case.
+				 */
+
+				suppressed.addSuppressed(t);
 			}
 		}
 
-		if (suppressed != null)
-			throwSuppressedThrowable(suppressed);
+		// if we encountered any exceptions, throw the UnlockException
+		if (suppressed.getSuppressed().length != 0)
+			throw suppressed;
 	}
 
 	/**
-	 * Performs {@code supplier} under lock of {@code key}
-	 * 
-	 * @return the result of {@code supplier}
+	 * TODO Runs {@code runnable} under lock of {@code key}<br />
+	 * NOTE: Documented behavior with a null key is explicitly undefined. The current implementation simply executes
+	 * {@code runnable}, however it is highly discouraged to pass a null key, and this behavior is likely to change without
+	 * documentation of such change.
 	 */
 	public <U> U synchronize(@Nonnull Supplier<U> supplier, T key)
 	{
@@ -194,7 +215,7 @@ public class LockManager<T extends Enum<T>>
 		if (key == null)
 			return supplier.get();
 
-		ReentrantLock lock = requireNonNullKey(key);
+		ReentrantLock lock = requireMappedKey(key);
 		lock.lock();
 
 		U ret;
@@ -209,7 +230,10 @@ public class LockManager<T extends Enum<T>>
 	}
 
 	/**
-	 * Runs {@code runnable} under lock of {@code key}
+	 * TODO Runs {@code runnable} under lock of {@code key}<br />
+	 * NOTE: Documented behavior with a null key is explicitly undefined. The current implementation simply executes
+	 * {@code runnable}, however it is highly discouraged to pass a null key, and this behavior is likely to change without
+	 * documentation of such change.
 	 */
 	public void synchronize(@Nonnull Runnable runnable, T key)
 	{
@@ -226,7 +250,10 @@ public class LockManager<T extends Enum<T>>
 	}
 
 	/**
-	 * Perform {@code supplier} under lock of all locks with the given keys.
+	 * TODO Perform {@code supplier} under lock of all locks with the given keys.<br />
+	 * NOTE: Documented behavior with a null key set is explicitly undefined. The current implementation simply executes
+	 * {@code supplier}, however it is highly discouraged to pass a null key set, and this behavior is likely to change without
+	 * documentation of such change.
 	 * 
 	 * @return the result of {@code supplier}
 	 */
@@ -238,14 +265,14 @@ public class LockManager<T extends Enum<T>>
 			return supplier.get();
 
 		U ret = null;
-		Throwable suppressed = null;
+		Throwable suppressor = null;
 		try
 		{
 			lockAll(keys);
 			ret = supplier.get();
 		} catch (Throwable t)
 		{
-			suppressed = t;
+			suppressor = t;
 		} finally
 		{
 			try
@@ -253,20 +280,23 @@ public class LockManager<T extends Enum<T>>
 				unlockAll(keys);
 			} catch (Throwable t)
 			{
-				if (suppressed != null)
-					t.addSuppressed(suppressed);
-				throw t;
+				if (suppressor != null)
+					suppressor.addSuppressed(t);
+				else
+					throw t;
 			}
-
-			if (suppressed != null)
-				throwSuppressedThrowable(suppressed);
+			if (suppressor != null)
+				ThrowableUtils.throwUnknownThrowable(suppressor);
 		}
 
 		return ret;
 	}
 
 	/**
-	 * Runs {@code runnable} under lock of all locks with the given keys.
+	 * TODO Runs {@code runnable} under lock of all locks with the given keys.<br />
+	 * NOTE: Documented behavior with a null key set is explicitly undefined. The current implementation simply executes
+	 * {@code runnable}, however it is highly discouraged to pass a null key set, and this behavior is likely to change without
+	 * documentation of such change.
 	 */
 	public void synchronize(@Nonnull Runnable runnable, EnumSet<T> keys)
 	{
@@ -288,24 +318,40 @@ public class LockManager<T extends Enum<T>>
 	 * @param key
 	 * @return
 	 */
-	private ReentrantLock requireNonNullKey(T key)
+	private ReentrantLock requireMappedKey(T key)
 	{
-		ReentrantLock lock = this.locks.get(key);
+		ReentrantLock lock = locks.get(key);
 		return Objects.requireNonNull(lock, "Lock with the key \"" + key.name() + "\" is not managed by this LockManager!");
 	}
 
-	/**
-	 * TODO
-	 * 
-	 * @param suppressed
-	 */
-	private void throwSuppressedThrowable(Throwable suppressed)
+	public static final class UnlockException extends RuntimeException
 	{
-		if (suppressed instanceof RuntimeException)
-			throw (RuntimeException) suppressed;
-		else if (suppressed instanceof Error)
-			throw (Error) suppressed;
-		else
-			throw new RuntimeException(suppressed);
+		private static final long serialVersionUID = -1264609241964996937L;
+
+		private UnlockException()
+		{
+			super();
+		}
+
+		private UnlockException(String message)
+		{
+			super(message);
+		}
+
+		private UnlockException(Throwable cause)
+		{
+			super(cause);
+		}
+
+		private UnlockException(String message, Throwable cause)
+		{
+			super(message, cause);
+		}
+
+		// don't support this constructor, as disabling suppression is potentially catastrophic.
+		// private UnlockException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace)
+		// {
+		// super(message, cause, enableSuppression, writableStackTrace);
+		// }
 	}
 }
