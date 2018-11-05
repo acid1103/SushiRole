@@ -7,13 +7,7 @@ import java.security.GeneralSecurityException;
 import org.abitoff.discord.sushirole.commands.cli.CLICommand;
 import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.utils.LoggingUtils;
-import org.abitoff.discord.sushirole.utils.Utils;
 import org.slf4j.LoggerFactory;
-
-import com.google.crypto.tink.CleartextKeysetHandle;
-import com.google.crypto.tink.JsonKeysetReader;
-import com.google.crypto.tink.KeysetHandle;
-import com.google.crypto.tink.aead.AeadConfig;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
