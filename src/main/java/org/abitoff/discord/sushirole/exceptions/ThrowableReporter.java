@@ -21,6 +21,7 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
+import org.abitoff.discord.sushirole.SushiRole;
 import org.abitoff.discord.sushirole.config.SushiRoleConfig.ErrorReportingConfig;
 import org.abitoff.discord.sushirole.config.SushiRoleConfig.PastebinConfig;
 import org.abitoff.discord.sushirole.exceptions.ThrowableReporter.ThrowableReportingException.ExceptionType;
@@ -41,6 +42,7 @@ import com.google.crypto.tink.aead.AeadFactory;
 
 import ch.qos.logback.classic.Logger;
 import net.dv8tion.jda.core.EmbedBuilder;
+import net.dv8tion.jda.core.MessageBuilder;
 import net.dv8tion.jda.core.entities.Message;
 import net.dv8tion.jda.core.entities.MessageChannel;
 import net.dv8tion.jda.core.entities.MessageEmbed;
@@ -67,6 +69,7 @@ public class ThrowableReporter
 	 * {@link ExceptionHandler#appendAuthorInformation(MessageHandlingException, EmbedBuilder) appendAuthorInformation()}
 	 */
 	private static final String EMBED_AUTHOR_FORMAT = "%guild%>%channel%>%user%";
+	private static final String DISCORD_FILE_EXTENSION = ".txt";
 
 	/**
 	 * The number of seconds to delay additional reports of encryption trouble. (See
@@ -93,7 +96,6 @@ public class ThrowableReporter
 	private final MessageChannel reportingChannel;
 	private final PasteBin pastebin;
 	private final Aead encryptor;
-	private boolean alwaysLog;
 
 	public ThrowableReporter(Logger fileLogger, MessageChannel devGuildReportingChannel, AccountCredentials pastebinCredentials,
 			KeysetHandle AEADEncryptionKey)
@@ -139,13 +141,25 @@ public class ThrowableReporter
 
 	private ThrowablePacket processPacket(ThrowablePacket packet)
 	{
-		if (reportingChannel == null || alwaysLog)
+		if (reportingChannel == null)
 		{
 			if (log != null && log.isErrorEnabled())
-				log.error("The following error was reported to ThrowableReporter:", packet.originalThrowable);
-		}
-		if (reportingChannel != null)
+			{
+				log.error("The following error has been encountered and reported to a ThrowableReporter associated with this "
+						+ "Logger: " + packet.originalThrowable);
+			} else
+			{
+				if (SushiRole.LOG.isErrorEnabled())
+				{
+					SushiRole.LOG.error("The following error has been encountered and reported to a ThrowableReporter, yet no "
+							+ "Discord reporting channel or Logger have been supplied.", packet.originalThrowable);
+				}
+				// else I guess we're on our own....
+			}
+		} else
 		{
+			if (log != null && log.isErrorEnabled())
+				log.warn("Reporting the following exception:", packet.originalThrowable);
 			if (pastebin != null && encryptor != null)
 			{
 				try
@@ -164,19 +178,11 @@ public class ThrowableReporter
 						else if (tre.type == ExceptionType.PASTEBIN)
 							packet.pastebinException = tre;
 						else // this should never happen
-						{
-							if (packet.unknownException != null)
-								packet.unknownException.addSuppressed(tre);
-							else
-								packet.unknownException = tre;
-						}
+							packet.addUnknownException(tre);
 					} else // this should also never happen
 					{
 						ThrowableReportingException tre = new ThrowableReportingException(e, ExceptionType.UNKNOWN);
-						if (packet.unknownException != null)
-							packet.unknownException.addSuppressed(tre);
-						else
-							packet.unknownException = tre;
+						packet.addUnknownException(tre);
 					}
 				}
 			}
@@ -188,8 +194,8 @@ public class ThrowableReporter
 			} catch (Exception e)
 			{
 				packet.discordException = new ThrowableReportingException(e, ExceptionType.DISCORD);
-
-				// TODO:report to log
+				prepareExceptionsForLogging(packet);
+				// TODO log it
 			}
 		}
 
@@ -352,43 +358,91 @@ public class ThrowableReporter
 
 	private void generateDiscordMessageAction(ThrowablePacket packet)
 	{
-		if (packet.url == null)
+		prepareExceptionsForLogging(packet);
+		Message message = new MessageBuilder().setEmbed(buildErrorEmbed(packet)).build();
+		if (packet.uploadData == null)
 		{
-			generateFailedPastebinData(packet);
+			packet.action = reportingChannel.sendMessage(message);
+		} else
+		{
+			if (packet.uploadData.length > Message.MAX_FILE_SIZE)
+			{
+				compress(packet);
+				packet.title += ".zip";
+			} else
+			{
+				packet.title += DISCORD_FILE_EXTENSION;
+			}
+			if (packet.uploadData.length > Message.MAX_FILE_SIZE)
+			{
+				message = new MessageBuilder()
+						.setContent("An exception was encountered, and it's too large to post on discord. Check the logs.")
+						.build();
+				packet.addUnknownException(new ThrowableReportingException(
+						"The stacktraces contained herein are too large to post to Discord, despite attempts to compress.",
+						ExceptionType.UNKNOWN));
+				packet.action = reportingChannel.sendMessage(message);
+			} else
+			{
+				packet.action = reportingChannel.sendFile(packet.uploadData, packet.title, message);
+			}
 		}
-		// TODO don't forget to compress files which are too large to be sent through discord
 	}
 
-	private void generateFailedPastebinData(ThrowablePacket packet)
+	private void prepareExceptionsForLogging(ThrowablePacket packet)
 	{
-		if (packet.encryptionException == null && packet.pastebinException == null && packet.unknownException == null)
-			packet.unknownException = new ThrowableReportingException(
-					"packet.url is null, yet there aren't any caught exceptions!", ExceptionType.UNKNOWN);
+		if (packet.url != null)
+		{
+			packet.uploadData = null;
+		} else
+		{
+			if (encryptor == null || pastebin == null)
+			{
+				String dataString = "The following exception has been encountered and reported. The reporting ThrowableReporter "
+						+ "has no configured encryptor or pastebin api.\n\t";
+				dataString += packet.plaintext.replace("\n", "\n\t");
+				packet.uploadData = dataString.getBytes(StandardCharsets.UTF_8);
+				generatePasteTitle(packet);
+			} else
+			{
+				if (packet.encryptionException == null && packet.pastebinException == null && packet.unknownException == null)
+					packet.unknownException = new ThrowableReportingException(
+							"packet.url is null, yet there aren't any caught exceptions!", ExceptionType.UNKNOWN);
 
-		String dataString = "The following errors were encountered while attempting to prepare and upload an exception to "
-				+ "Pastebin:\n\n";
-		if (packet.encryptionException != null)
-		{
-			dataString += "\tThe following was encountered while attempting to encrypt the data:\n\t\t";
-			String eStr = throwableToString(packet.encryptionException).replace("\n", "\n\t\t");
-			dataString += eStr + "\n\n";
-		}
-		if (packet.pastebinException != null)
-		{
-			dataString += "\tThe following was encountered while attempting to upload the data:\n\t\t";
-			String eStr = throwableToString(packet.pastebinException).replace("\n", "\n\t\t");
-			dataString += eStr + "\n\n";
-		}
-		if (packet.unknownException != null)
-		{
-			dataString += "\tThe following unknown/unexpected error(s) where encountered:\n\t\t";
-			String eStr = throwableToString(packet.unknownException).replace("\n", "\n\t\t");
-			dataString += eStr + "\n\n";
-		}
-		dataString += "The preceding errors were encountered while attempting to prepare and upload the following exception:\n\t";
-		dataString += packet.plaintext.replace("\n", "\n\t");
+				String dataString = "The following errors were encountered while attempting to prepare and upload an exception "
+						+ "to Pastebin:\n\n";
+				if (packet.encryptionException != null)
+				{
+					dataString += "\tThe following was encountered while attempting to encrypt the data:\n\t\t";
+					String eStr = throwableToString(packet.encryptionException).replace("\n", "\n\t\t");
+					dataString += eStr + "\n\n";
+				}
+				if (packet.pastebinException != null)
+				{
+					dataString += "\tThe following was encountered while attempting to upload the data:\n\t\t";
+					String eStr = throwableToString(packet.pastebinException).replace("\n", "\n\t\t");
+					dataString += eStr + "\n\n";
+				}
+				if (packet.discordException != null)
+				{
+					dataString += "\tThe following was encountered while attempting to report to discord:\n\t\t";
+					String eStr = throwableToString(packet.discordException).replace("\n", "\n\t\t");
+					dataString += eStr + "\n\n";
+				}
+				if (packet.unknownException != null)
+				{
+					dataString += "\tThe following unknown/unexpected error(s) were encountered:\n\t\t";
+					String eStr = throwableToString(packet.unknownException).replace("\n", "\n\t\t");
+					dataString += eStr + "\n\n";
+				}
+				dataString += "The preceding errors were encountered while attempting to prepare and upload the following "
+						+ "exception:\n\t";
+				dataString += packet.plaintext.replace("\n", "\n\t");
 
-		packet.uploadData = dataString.getBytes(StandardCharsets.UTF_8);
+				packet.uploadData = dataString.getBytes(StandardCharsets.UTF_8);
+				generatePasteTitle(packet);
+			}
+		}
 	}
 
 	/**
@@ -516,21 +570,19 @@ public class ThrowableReporter
 		return String.format("**%s**\n%s", t.getClass().getSimpleName(), message);
 	}
 
-	private boolean compress(ThrowablePacket packet)
+	private void compress(ThrowablePacket packet)
 	{
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		ZipEntry entry = new ZipEntry(packet.title);
+		ZipEntry entry = new ZipEntry(packet.title + DISCORD_FILE_EXTENSION);
 		try (ZipOutputStream compressedData = new ZipOutputStream(baos))
 		{
 			compressedData.putNextEntry(entry);
 			compressedData.write(packet.uploadData);
 		} catch (IOException e)
 		{
-			return false;
+			reportThrowable(e);
 		}
-		packet.title += ".zip";
 		packet.uploadData = baos.toByteArray();
-		return true;
 	}
 
 	/**
@@ -605,6 +657,14 @@ public class ThrowableReporter
 			this.plaintext = throwableToString(t);
 			this.plaintextBytes = plaintext.getBytes(StandardCharsets.UTF_8);
 			flags = EnumSet.noneOf(ErrorFileUtils.HeaderFlag.class);
+		}
+
+		private void addUnknownException(ThrowableReportingException t)
+		{
+			if (unknownException == null)
+				unknownException = t;
+			else
+				unknownException.addSuppressed(t);
 		}
 
 		/**
@@ -768,7 +828,6 @@ public class ThrowableReporter
 			ENCRYPTION,
 			PASTEBIN,
 			DISCORD,
-			COMPRESSION,
 			UNKNOWN,
 		}
 	}
