@@ -17,8 +17,6 @@ public class LoggingUtils
 	{
 	}
 
-	Level[] verbosityLevels = new Level[] {Level.OFF, Level.ERROR, Level.WARN, Level.INFO, Level.DEBUG, Level.TRACE, Level.ALL};
-
 	/**
 	 * TODO
 	 * 
