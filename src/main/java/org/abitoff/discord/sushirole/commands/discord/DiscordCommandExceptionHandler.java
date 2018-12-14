@@ -59,14 +59,15 @@ class DiscordCommandExceptionHandler implements IExceptionHandler2<Void>
 		// published bot*\}
 		else if (ex instanceof OverwrittenOptionException)
 		{
-			// picocli provides no nice way of retrieving the argument which was overwritten, so we have to hard code some of
-			// this... the desired functionality will be added in 3.8. (see https://github.com/remkop/picocli/pull/532)
 			OverwrittenOptionException e = (OverwrittenOptionException) ex;
-			String exmsg = e.getMessage();
-			exmsg = exmsg.substring(8);
-			exmsg = exmsg.substring(0, exmsg.indexOf(' ') - 1);
+			String argName;
+			ArgSpec spec = e.getArgSpec();
+			if (spec.isOption())
+				argName = ((OptionSpec) spec).longestName();
+			else
+				argName = spec.paramLabel();
 			content = "<:error:410903384586059776> The `" + e.getCommandLine().getCommandName() + "` command only takes one `"
-					+ exmsg + "` option!";
+					+ argName + "` option!";
 		} else if (ex instanceof UnmatchedArgumentException)
 		{
 			UnmatchedArgumentException e = (UnmatchedArgumentException) ex;
