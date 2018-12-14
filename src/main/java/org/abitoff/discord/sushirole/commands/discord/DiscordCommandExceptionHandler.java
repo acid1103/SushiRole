@@ -61,7 +61,7 @@ class DiscordCommandExceptionHandler implements IExceptionHandler2<Void>
 		{
 			OverwrittenOptionException e = (OverwrittenOptionException) ex;
 			String argName;
-			ArgSpec spec = e.getArgSpec();
+			ArgSpec spec = e.getOverwritten();
 			if (spec.isOption())
 				argName = ((OptionSpec) spec).longestName();
 			else
