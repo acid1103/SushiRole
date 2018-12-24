@@ -1,19 +1,23 @@
 package org.abitoff.discord.sushirole.commands.discord;
 
 import java.io.File;
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.abitoff.discord.sushirole.commands.Command;
 import org.abitoff.discord.sushirole.exceptions.FatalException;
 import org.abitoff.discord.sushirole.exceptions.ParameterException;
 import org.abitoff.discord.sushirole.utils.CommandUtils;
+import org.abitoff.discord.sushirole.utils.LoggingUtils;
+import org.abitoff.discord.sushirole.utils.Utils;
 
 import net.dv8tion.jda.core.entities.Message;
+import net.dv8tion.jda.core.entities.Role;
 import net.dv8tion.jda.core.events.Event;
 import net.dv8tion.jda.core.events.message.guild.GuildMessageReceivedEvent;
 import picocli.CommandLine;
@@ -31,74 +35,65 @@ public abstract class DiscordCommand extends Command
 	private static final ConcurrentHashMap<String,Message> helpMessages = CommandUtils.generateHelpMessages(cl);
 
 	@CommandLine.Command(
-			name = "test")
-	public static final class TestCommand extends DiscordCommand
+			name = "list",
+			aliases = {"listroles"})
+	public static final class ListCommand extends DiscordCommand
 	{
-		@Option(
-				names = {"-h", "--help"},
-				usageHelp = true)
-		private boolean helpFlag = false;
-
-		@Option(
-				names = {"-f", "--file"},
-				description = "File(s) to process.")
-		private boolean inputFiles;
-
-		@Option(
-				names = {"-F", "--file2"},
-				arity = "2",
-				description = "File(s) to process.",
-				required = false)
-		private File inputFiles2;
+		@Override
+		protected void executeCommand(Event event, Object...args)
+		{
+			GuildMessageReceivedEvent evnt = (GuildMessageReceivedEvent) event;
+			List<Role> roles = evnt.getGuild().getRoles();
+			String[] contentString = new String[roles.size()];
+			int i = 0;
+			for (Role role: roles)
+			{
+				if (role.equals(evnt.getGuild().getPublicRole()))
+					continue;
+				String name = Utils.escapeMessageFormatting(role.getName());
+				String entry = "\n__**" + name + ":**__\n" + role.getId();
+				contentString[i] = entry;
+				i++;
+			}
+			String message = Utils.join(contentString, "");
+			evnt.getChannel().sendMessage(message).queue();
+		}
 
 		@Override
 		protected void verifyParameters() throws ParameterException
 		{
 		}
+	}
+
+	@CommandLine.Command(
+			name = "duplicate",
+			aliases = {"dup"})
+	public static final class DuplicateCommand extends DiscordCommand
+	{
+		@Parameters(
+				index = "0",
+				paramLabel = "<roles>",
+				descriptionKey = "roles",
+				arity = "1..*")
+		private List<Long> roles;
+
+		@Option(
+				names = {"-n", "--names"},
+				arity = "1..*")
+		private List<Long> names;
+
+		@Override
+		protected void verifyParameters() throws ParameterException
+		{
+			if (roles == null || roles.size() == 0)
+				throw new ParameterException("Must specify at least one role to duplicate!");
+		}
 
 		@Override
 		protected void executeCommand(Event event, Object...args)
 		{
-			try
-			{
-				int tab = 0;
-				Field[] fields = getClass().getDeclaredFields();
-				String[] names = new String[fields.length];
-				String[] values = new String[fields.length];
-				for (int i = 0; i < fields.length; i++)
-				{
-					Field f = fields[i];
-					names[i] = f.getName();
-					if (names[i].length() > tab)
-						tab = names[i].length();
-					Object obj = f.get(this);
-					if (obj == null)
-					{
-						values[i] = "null";
-					} else if (obj.getClass().isArray())
-					{
-						Object[] objAr = new Object[Array.getLength(obj)];
-						for (int j = 0; j < objAr.length; j++)
-							objAr[j] = Array.get(obj, j);
-						values[i] = Arrays.deepToString(objAr);
-					} else
-					{
-						values[i] = obj.toString();
-					}
-				}
-				for (int i = 0; i < names.length; i++)
-				{
-					int nameLength = names[i].length();
-					int toTab = tab - nameLength;
-					String tabStr = "";
-					for (int j = 0; j < toTab; j++)
-						tabStr += " ";
-					System.out.println(names[i] + ": " + tabStr + values[i]);
-				}
-			} catch (Exception e)
-			{
-				e.printStackTrace();
-			}
+			System.out.println(roles);
+			System.out.println(names);
 		}
 	}
 
@@ -109,84 +104,6 @@ public abstract class DiscordCommand extends Command
 		@Override
 		protected void verifyParameters() throws ParameterException
 		{
-		}
-
-		@Override
-		protected void executeCommand(Event event, Object...args) throws FatalException
-		{
-
-		}
-	}
-
-	@CommandLine.Command(
-			name = "run")
-	public static final class RunCommand extends DiscordCommand
-	{
-		@Option(
-				names = {"-d", "--dev"})
-		private boolean dev = false;
-
-		@Option(
-				names = {"-s", "--shards"},
-				paramLabel = "<total shards>")
-		private int shards = 1;
-
-		@Option(
-				names = {"-v", "--verbose"})
-		private boolean[] verbosity = new boolean[0];
-
-		@Option(
-				names = {"-h", "--help"},
-				usageHelp = true)
-		private boolean helpFlag = false;
-
-		@Override
-		protected void verifyParameters() throws ParameterException
-		{
-		}
-
-		@Override
-		protected void executeCommand(Event event, Object...args) throws FatalException
-		{
-			if (event instanceof GuildMessageReceivedEvent)
-			{
-				GuildMessageReceivedEvent evnt = (GuildMessageReceivedEvent) event;
-				evnt.getChannel()
-						.sendMessage("Dev: " + dev + "\nShards: " + shards + "\nVerbosity: " + Arrays.toString(verbosity))
-						.queue();
-			} else
-			{
-				System.out.println("Dev: " + dev);
-				System.out.println("Shards: " + shards);
-				System.out.println("Verbosity: " + Arrays.toString(verbosity));
-			}
-		}
-	}
-
-	@CommandLine.Command(
-			name = "decrypt")
-	public static final class DecryptCommand extends DiscordCommand
-	{
-		@Parameters(
-				index = "0",
-				paramLabel = "<input file>",
-				descriptionKey = "in")
-		private File in;
-		@Parameters(
-				index = "1",
-				paramLabel = "<output file>",
-				descriptionKey = "out")
-		private File out;
-
-		@Option(
-				names = {"-h", "--help"},
-				usageHelp = true)
-		private boolean helpFlag = false;
-
-		@Override
-		protected void verifyParameters() throws ParameterException
-		{
-
 		}
 
 		@Override

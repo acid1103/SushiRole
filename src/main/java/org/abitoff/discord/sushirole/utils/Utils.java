@@ -74,8 +74,13 @@ public class Utils
 			}
 		}
 		String s = strings[strings.length - 1];
-		s.getChars(0, s.length(), join, offset);
+		if (s != null)
+			s.getChars(0, s.length(), join, offset);
 		return new String(join);
 	}
 
+	public static String escapeMessageFormatting(String str)
+	{
+		return str.replace("*", "\\*").replace("_", "\\_").replace("~", "\\~").replace("`", "\\`");
+	}
 }
