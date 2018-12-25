@@ -1,11 +1,13 @@
 package org.abitoff.discord.sushirole.commands.discord;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,10 +18,13 @@ import org.abitoff.discord.sushirole.utils.CommandUtils;
 import org.abitoff.discord.sushirole.utils.LoggingUtils;
 import org.abitoff.discord.sushirole.utils.Utils;
 
+import net.dv8tion.jda.core.entities.Channel;
 import net.dv8tion.jda.core.entities.Message;
 import net.dv8tion.jda.core.entities.Role;
+import net.dv8tion.jda.core.entities.TextChannel;
 import net.dv8tion.jda.core.events.Event;
 import net.dv8tion.jda.core.events.message.guild.GuildMessageReceivedEvent;
+import net.dv8tion.jda.core.requests.restaction.MessageAction;
 import picocli.CommandLine;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -44,7 +49,8 @@ public abstract class DiscordCommand extends Command
 		{
 			GuildMessageReceivedEvent evnt = (GuildMessageReceivedEvent) event;
 			List<Role> roles = evnt.getGuild().getRoles();
-			String[] contentString = new String[roles.size()];
+
+			String[] entries = new String[roles.size()];
 			int i = 0;
 			for (Role role: roles)
 			{
@@ -52,16 +58,70 @@ public abstract class DiscordCommand extends Command
 					continue;
 				String name = Utils.escapeMessageFormatting(role.getName());
 				String entry = "\n__**" + name + ":**__\n" + role.getId();
-				contentString[i] = entry;
+				entries[i] = entry;
 				i++;
 			}
-			String message = Utils.join(contentString, "");
-			evnt.getChannel().sendMessage(message).queue();
+
+			Integer[] splits = new Integer[entries.length];
+			i = 0;
+			for (int j = 0, sum = 0; j < entries.length; j++)
+			{
+				if (entries[j] == null)
+					continue;
+				sum += entries[j].length();
+				if (sum > Message.MAX_CONTENT_LENGTH)
+				{
+					splits[i++] = j;
+					sum = entries[j].length();
+				}
+			}
+
+			String[] contents = new String[i];
+			i = 0;
+			while (i < splits.length && splits[i] != null)
+			{
+				String[] content = new String[splits[i]];
+				int startPos = i == 0 ? 0 : splits[i - 1];
+				int length = splits[i] - startPos;
+				System.arraycopy(entries, startPos, content, 0, length);
+				contents[i] = Utils.join(content, "");
+				i++;
+			}
+
+			TextChannel channel = evnt.getChannel();
+			channel.sendMessage(contents[0]).queue(new ListMessageQueue(channel, contents, 1), t ->
+			{
+				throw new FatalException(t);
+			});
 		}
 
 		@Override
 		protected void verifyParameters() throws ParameterException
 		{
+		}
+
+		private static final class ListMessageQueue implements Consumer<Message>
+		{
+			private final TextChannel channel;
+			private final String[] contents;
+			private final int i;
+
+			private ListMessageQueue(TextChannel channel, String[] contents, int index)
+			{
+				this.channel = channel;
+				this.contents = contents;
+				this.i = index;
+			}
+
+			@Override
+			public void accept(Message m)
+			{
+				if (i < contents.length)
+					channel.sendMessage(contents[i]).queue(new ListMessageQueue(channel, contents, i + 1), t ->
+					{
+						throw new FatalException(t);
+					});
+			}
 		}
 	}
 
